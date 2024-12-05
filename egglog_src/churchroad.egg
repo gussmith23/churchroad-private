@@ -17,6 +17,7 @@
   (Or)
   (Xor)
   (Shr)
+  (Ashr)
   (Shl)
   ; Returns a bitvector of width 1.
   (Eq)
@@ -159,6 +160,7 @@
 (AllBitwidthsMatch (Or))
 (AllBitwidthsMatch (Xor))
 (AllBitwidthsMatch (Shr))
+(AllBitwidthsMatch (Ashr))
 (AllBitwidthsMatch (Shl))
 (AllBitwidthsMatch (Mul))
 ;;; TODO(@ninehusky): don't we need this here?
