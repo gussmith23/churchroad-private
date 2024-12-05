@@ -369,6 +369,70 @@ fn main() {
                  (Op0 (BV 16 ?expr-bw))))))
             :ruleset transform)
 
+        ; TODO working on this
+        ; Mul splitting rewrite that is actually used to map to DSPs on Xilinx.
+        ; in math:
+        ; a * b = (a * b1 + (a * b0) >> 17)[15:0] ++ (a * b0)[15:0]
+        ; where b1 and b0 are the upper and lower halves of b, and here we're
+        ; assuming b=32 bits and a=16 bits. But we will write the rewrite
+        ; to be general.
+        ;
+        ; Here's a generalized version of the rule, verified in Rosette:
+        ; (define a-bw 9)
+        ; (define b-bw 8)
+        ; (define a0-bw 4)
+        ; (define out-bw (+ a-bw b-bw))
+        ; (define ap-bw (- a-bw a0-bw))
+        ; (define-symbolic a (bitvector a-bw))
+        ; (define-symbolic b (bitvector b-bw))
+        ; (define a0 (extract (- a0-bw 1) 0 a))
+        ; (define ap (extract (- a-bw 1) a0-bw a))
+        ; ;;; Initial implementation
+        ; (define spec (bvmul (sign-extend a (bitvector out-bw)) (sign-extend b (bitvector out-bw))))
+        ; ;;; Rewritten implementation, broken up for DSP mapping
+        ; (define lower-mul
+        ;   (bvmul (zero-extend a0 (bitvector (+ a0-bw b-bw))) (sign-extend b (bitvector (+ a0-bw b-bw)))))
+        ; (define upper-mul
+        ;   (bvmul (sign-extend ap (bitvector (+ ap-bw b-bw))) (sign-extend b (bitvector (+ ap-bw b-bw)))))
+        ; (define rewritten
+        ;   ; how wide should we extend the inputs of the add to? to however wide
+        ;   ; that portion of the multiplication is. so i think it's full mul width - a0-bw
+        ;   (concat (bvadd (sign-extend upper-mul (bitvector (- out-bw a0-bw)))
+        ;                  (sign-extend (bvashr lower-mul (bv a0-bw (+ a0-bw b-bw))) (bitvector (- out-bw a0-bw))))
+        ;           (extract (- a0-bw 1) 0 lower-mul)))
+        ; (define maybe-model (verify (assert (bveq spec rewritten))))
+        (rule
+         (
+          (= ?expr (Op2 (Mul) ?a ?b))
+          (RealBitwidth ?a ?a-real-bw)
+          (RealBitwidth ?b ?b-real-bw)
+          (HasType ?expr (Bitvector ?expr-bw))
+          ; Make sure we can actually split this multiply
+          (> ?a-real-bw 17)
+         )
+         (
+          ;(panic "hi")
+          (union
+           ?expr
+           (Op2 (Concat)
+            (Op2 (Add)
+             (Op1 (SignExtend (- (+ ?a-real-bw ?b-real-bw) 17))
+              (Op2 (Mul)
+               (Op1 (SignExtend (+ (- ?a-real-bw 17) ?b-real-bw)) (Op1 (Extract (- ?a-real-bw 1) 17) a))
+               (Op1 (SignExtend (+ (- ?a-real-bw 17) ?b-real-bw)) (Op1 (Extract (- ?b-real-bw 1) 0) b))))
+             (Op1 (SignExtend (- (+ ?a-real-bw ?b-real-bw) 17))
+              (Op2 (Ashr)
+               (Op2 (Mul)
+                (Op1 (ZeroExtend (+ 17 ?b-real-bw)) (Op1 (Extract 16 0) a))
+                (Op1 (SignExtend (+ 17 ?b-real-bw)) (Op1 (Extract (- ?b-real-bw 1) 0) b)))
+               (Op0 (BV 17 (+ 17 ?b-real-bw))))))
+            (Op1 (Extract 16 0)
+             (Op2 (Mul)
+                (Op1 (ZeroExtend (+ 17 ?b-real-bw)) (Op1 (Extract 16 0) a))
+                (Op1 (SignExtend (+ 17 ?b-real-bw)) (Op1 (Extract (- ?b-real-bw 1) 0) b))))))
+         )
+         :ruleset transform)
+
         ; mul shrinking
         ; When a mul doesn't need all of its bits, we can shrink it and then 
         ; extend the result.
