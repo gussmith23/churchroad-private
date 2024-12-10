@@ -41,6 +41,10 @@ struct Args {
 
     #[arg(long, action=ArgAction::Append)]
     simulate_with_verilator_arg: Vec<String>,
+
+    /// Interact with the egraph on the command line after running rewrites
+    #[arg(long)]
+    interact: bool,
 }
 
 #[derive(ValueEnum, Clone, Debug)]
@@ -50,11 +54,16 @@ enum Architecture {
 
 /// Run commands to interact with the egraph.
 fn _egraph_interact(egraph: &mut EGraph) {
-    loop {
+    println!("Now interacting with egraph. Type any egglog command. Use Ctrl+D to exit.");
+    'interact: loop {
         print!("> ");
         stdout().flush().unwrap();
         let mut buf = String::new();
         stdin().read_line(&mut buf).unwrap();
+        if buf.is_empty() {
+            log::info!("EOF while interacting; continuing on with Churchroad.");
+            break 'interact;
+        }
         let out = egraph.parse_and_run_program(None, &buf);
         if let Ok(out) = out {
             println!("{}", out.join("\n"));
@@ -548,7 +557,9 @@ fn main() {
         node_ids.len()
     );
 
-    // _egraph_interact(&mut egraph);
+    if args.interact {
+        _egraph_interact(&mut egraph);
+    }
 
     // STEP 5: For each proposed mapping, attempt synthesis with Lakeroad.
     for sketch_template_node_id in &node_ids {
