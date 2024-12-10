@@ -420,7 +420,6 @@ fn main() {
           (> ?a-real-bw 17)
          )
          (
-          ;(panic "hi")
           (union
            ?expr
            (Op2 (Concat)
