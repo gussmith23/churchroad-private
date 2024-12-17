@@ -1,4 +1,5 @@
 // RUN: cargo run -- \
+// RUN:   --solver cvc5 \
 // RUN:   --filepath %s \
 // RUN:   --top-module-name mul \
 // RUN:   --architecture xilinx-ultrascale-plus \
