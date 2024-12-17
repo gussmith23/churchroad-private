@@ -30,6 +30,7 @@ pub fn call_lakeroad_on_primitive_interface_and_spec(
     _spec_node_id: &NodeId,
     sketch_template_node_id: &NodeId,
     architecture: &str,
+    solver: &str,
 ) -> String {
     let eclass = &serialized_egraph[sketch_template_node_id].eclass;
     // Assert the two nodes are the same class.
@@ -128,6 +129,8 @@ pub fn call_lakeroad_on_primitive_interface_and_spec(
     let mut command = Command::new("racket");
     command
         .arg(lakeroad_dir.join("bin").join("main.rkt"))
+        .arg("--solver")
+        .arg(solver)
         .arg("--architecture")
         .arg(architecture)
         .arg("--verilog-module-filepath")

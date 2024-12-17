@@ -45,6 +45,10 @@ struct Args {
     /// Interact with the egraph on the command line after running rewrites
     #[arg(long)]
     interact: bool,
+
+    /// Choose what solver to use for Lakeroad
+    #[arg(long)]
+    solver: String,
 }
 
 #[derive(ValueEnum, Clone, Debug)]
@@ -607,6 +611,7 @@ fn main() {
             &spec_node_id,
             sketch_template_node_id,
             &args.architecture.to_string(),
+            &args.solver,
         );
 
         log::debug!(
