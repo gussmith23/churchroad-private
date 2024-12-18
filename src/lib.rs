@@ -1559,7 +1559,17 @@ pub fn to_verilog_egraph_serialize(
         // expression.
         if let Some(name) = bottom_out_at.get(&id) {
             log::debug!("Bottoming out at node with name {}", name);
-            let bw = get_bitwidth_for_node(egraph, node_id).unwrap();
+            let bw = get_bitwidth_for_node(egraph, node_id).unwrap_or_else(|_| {
+                // TODO(@gussmith23): Should standardize egraph printing fns.
+                panic!(
+                    "No HasType for node {}",
+                    match egraph[node_id].op.as_str() {
+                        op @ ("Op0" | "Op1" | "Op2" | "Op3") =>
+                            format!("{} {}", op, egraph[&egraph[node_id].children[0]].op),
+                        op @ _ => op.to_owned(),
+                    }
+                )
+            });
 
             inputs_str
                 .push_str(format!("input [{bw}-1:0] {name},\n", bw = bw, name = name).as_str());
