@@ -278,6 +278,10 @@
   ((HasType (Op1 (ZeroExtend bitwidth) expr) (Bitvector bitwidth)))
   :ruleset typing)
 (rule
+  ((Op1 (SignExtend bitwidth) expr))
+  ((HasType (Op1 (SignExtend bitwidth) expr) (Bitvector bitwidth)))
+  :ruleset typing)
+(rule
   ((Op1 (LogicNot) expr))
   ((HasType (Op1 (LogicNot) expr) (Bitvector 1)))
   :ruleset typing)
