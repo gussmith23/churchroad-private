@@ -1427,6 +1427,34 @@ pub fn to_verilog_egraph_serialize(
 ) -> String {
     // let mut wires = HashMap::default();
 
+    // Check that everything has a type
+    {
+        let classes_without_hastype = util::missing_hastype(egraph);
+        if !classes_without_hastype.is_empty() {
+            panic!(
+                "Not all classes have type information.\n{}",
+                classes_without_hastype
+                    .iter()
+                    .map(|class_id| format!(
+                        "Class ID: {}\n{}",
+                        class_id,
+                        egraph[class_id]
+                            .nodes
+                            .iter()
+                            .map(|node_id| util::display_enode_serialized(
+                                egraph,
+                                node_id,
+                                2
+                            ))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    ))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+        }
+    }
+
     fn id_to_wire_name(id: &ClassId) -> String {
         format!("wire_{}", id.to_string().replace('-', "_"))
     }
