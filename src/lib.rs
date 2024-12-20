@@ -1,4 +1,5 @@
 pub mod global_greedy_dag;
+mod util;
 
 use egraph_serialize::{ClassId, Node, NodeId};
 use indexmap::IndexMap;
