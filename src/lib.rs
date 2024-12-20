@@ -1592,11 +1592,7 @@ pub fn to_verilog_egraph_serialize(
                 // TODO(@gussmith23): Should standardize egraph printing fns.
                 panic!(
                     "No HasType for node {}",
-                    match egraph[node_id].op.as_str() {
-                        op @ ("Op0" | "Op1" | "Op2" | "Op3") =>
-                            format!("{} {}", op, egraph[&egraph[node_id].children[0]].op),
-                        op @ _ => op.to_owned(),
-                    }
+                    util::display_enode_serialized(egraph, node_id, 3)
                 )
             });
 
