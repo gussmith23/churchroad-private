@@ -306,6 +306,37 @@ fn main() {
                (Op1 (Extract (- ?c-bw 1) 0) ?c))))
             :ruleset mapping)
         (rule 
+            ((= ?expr (Op2 (Add) ?c (Op1 (SignExtend ?unused-sign-extend-bw) (Op2 (Ashr) (Op2 (Mul) ?a ?b) (Op0 (BV 17 ?unused-bv-bw))))))
+             (RealBitwidth ?a ?a-bw)
+             (RealBitwidth ?b ?b-bw)
+             (RealBitwidth ?c ?c-bw)
+             (RealBitwidth (Op2 (Mul) ?a ?b) ?mul-bw)
+             (HasType ?expr (Bitvector ?add-bw))
+             (HasType ?a (Bitvector ?a-bw-full))
+             (HasType ?b (Bitvector ?b-bw-full))
+             (HasType ?c (Bitvector ?c-bw-full))
+             (<= ?a-bw 17)
+             (<= ?b-bw 17)
+             (<= ?c-bw 48)
+             (<= ?mul-bw 48)
+             ; TODO we need some kind of constraint here
+             (<= ?add-bw 48)
+             )
+            (; We need these first two unions to ensure that the new expressions for a and b are actually connected
+             ; to the other expressions in the egraph. Otherwise, they're only children of PrimitiveInterfaceDSP,
+             ; and are thus not extractable!
+             (let a-extracted (Op1 (Extract (- ?a-bw 1) 0) ?a))
+             (let b-extracted (Op1 (Extract (- ?b-bw 1) 0) ?b))
+             (let c-extracted (Op1 (Extract (- ?c-bw 1) 0) ?b))
+             ; TODO zero-extending here isn't always correct.
+             (union ?a (Op1 (ZeroExtend ?a-bw-full) a-extracted))
+             (union ?b (Op1 (ZeroExtend ?b-bw-full) b-extracted))
+             (union ?c (Op1 (ZeroExtend ?c-bw-full) c-extracted))
+             (union ?expr 
+              (PrimitiveInterfaceDSP3 
+               a-extracted b-extracted c-extracted)))
+            :ruleset mapping)
+        (rule 
             ((= ?expr (Op2 (Add) (Op2 (Mul) (Op1 (ZeroExtend ?n) ?a) (Op1 (ZeroExtend ?n) ?b)) ?c))
              (HasType ?expr (Bitvector ?n))
              (HasType ?a (Bitvector ?a-bw))
