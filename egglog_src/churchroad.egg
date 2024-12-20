@@ -224,6 +224,15 @@
    (AllBitwidthsMatch op))
   ((HasType (Op2 op i0 i1) (Bitvector bw)))
   :ruleset typing)
+; Error checking for the above.
+(rule
+  ((Op2 op i0 i1)
+   (AllBitwidthsMatch op)
+   (HasType i0 (Bitvector bw))
+   (HasType i1 (Bitvector bw2))
+   (!= i0 i1))
+  ((panic "AllBitwidthsMatch Op where inputs are different widths"))
+  :ruleset typing)
 (rule
   ((Op3 op i0 i1 i2)
    (HasType i0 (Bitvector bw))
