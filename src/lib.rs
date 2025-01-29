@@ -534,6 +534,16 @@ pub struct EnsureExtractSpecExtractor {
     pub ensure_extract: HashSet<egraph_serialize::NodeId>,
 }
 impl EnsureExtractSpecExtractor {
+    /// The algorithm is fairly simple: alternate between updating costs and
+    /// updating node choices based on those costs until no changes occur.
+    /// 
+    /// The "costs" are HashSets associated with each eclass. The set represents
+    /// the set of desired-to-be-extracted nodes that can currently be extracted
+    /// by extracting the currently-chosen node at this eclass.
+    /// 
+    /// HashSets may be inefficient. If we need to make this more efficient in
+    /// the future, we can use bitvectors to represent our sets, where 0 or 1
+    /// represents whether a specific desired node is included.
     pub fn extract(
         &self,
         egraph: &egraph_serialize::EGraph,
@@ -548,9 +558,9 @@ impl EnsureExtractSpecExtractor {
             .iter()
             .map(|(node_id, _)| {
                 if self.ensure_extract.contains(node_id) {
-                    (node_id.clone(), 1)
+                    (node_id.clone(), HashSet::from([node_id.clone()]))
                 } else {
-                    (node_id.clone(), 0)
+                    (node_id.clone(), HashSet::new())
                 }
             })
             .collect();
@@ -579,7 +589,7 @@ impl EnsureExtractSpecExtractor {
         // desired-to-be-extracted nodes under it.
         fn update_choices(
             egraph: &egraph_serialize::EGraph,
-            ensure_extract_tracker: &HashMap<NodeId, i32>,
+            ensure_extract_tracker: &HashMap<NodeId, HashSet<NodeId>>,
             choices: &mut IndexMap<ClassId, NodeId>,
         ) {
             for (id, class) in egraph.classes() {
@@ -594,7 +604,7 @@ impl EnsureExtractSpecExtractor {
                     })
                     .cloned()
                     .collect();
-                sorted_nodes.sort_by_key(|node_id| ensure_extract_tracker[node_id]);
+                sorted_nodes.sort_by_key(|node_id| ensure_extract_tracker[node_id].len());
                 sorted_nodes.reverse();
                 // debug!(
                 //     "Class {} has nodes {:?} with ensure_extract_tracker {:?}",
@@ -606,8 +616,8 @@ impl EnsureExtractSpecExtractor {
                 //         .collect::<Vec<_>>()
                 // );
                 // Update new choice only if it's increased
-                let new_choice = if ensure_extract_tracker[&sorted_nodes[0]]
-                    > ensure_extract_tracker[&choices[id]]
+                let new_choice = if ensure_extract_tracker[&sorted_nodes[0]].len()
+                    > ensure_extract_tracker[&choices[id]].len()
                 {
                     sorted_nodes[0].clone()
                 } else {
@@ -622,7 +632,7 @@ impl EnsureExtractSpecExtractor {
                 };
                 if new_choice != old_choice {
                     log::debug!(
-                        "Changed choice for class {} from {} to {} (value {} -> {}).",
+                        "Changed choice for class {} from {} to {} (value {:?} -> {:?}).",
                         id,
                         egraph[&old_choice].op,
                         egraph[&new_choice].op,
@@ -636,7 +646,7 @@ impl EnsureExtractSpecExtractor {
         // Returns whether any updates were made.
         fn update_node_tracker(
             egraph: &egraph_serialize::EGraph,
-            ensure_extract_tracker: &mut HashMap<NodeId, i32>,
+            ensure_extract_tracker: &mut HashMap<NodeId, HashSet<NodeId>>,
             choices: &IndexMap<egraph_serialize::ClassId, egraph_serialize::NodeId>,
             ensure_extract: &HashSet<NodeId>,
         ) -> bool {
@@ -669,27 +679,24 @@ impl EnsureExtractSpecExtractor {
                         //     "Child ID: {} with value {}",
                         //     node_choice, ensure_extract_tracker[node_choice]
                         // );
-                        ensure_extract_tracker[node_choice]
+                        ensure_extract_tracker[node_choice].clone()
                     })
-                    .sum();
-                let old_value = ensure_extract_tracker.insert(node_id.clone(), new_value);
+                    .reduce(|acc, e| acc.union(&e).cloned().collect::<HashSet<_>>())
+                    .expect("There should be children.");
+                let old_value = ensure_extract_tracker
+                    .insert(node_id.clone(), new_value.clone())
+                    .expect("Node should have already been in the tracker.");
                 assert!(
-                    old_value.is_some(),
-                    "Node should have already been in ensure_extract_tracker."
-                );
-                assert!(
-                    new_value >= old_value.unwrap(),
+                    new_value.len() >= old_value.len(),
                     "New value {} should be >= old value {}.",
-                    new_value,
-                    old_value.unwrap()
+                    new_value.len(),
+                    old_value.len()
                 );
 
-                if old_value.unwrap() != new_value {
+                if old_value != new_value {
                     debug!(
-                        "Node {} has new value {} (was {}).",
-                        egraph[node_id].op,
-                        new_value,
-                        old_value.unwrap()
+                        "Node {} has new value {:?} (was {:?}).",
+                        egraph[node_id].op, new_value, old_value
                     );
                     update_occurred = true;
                 }
