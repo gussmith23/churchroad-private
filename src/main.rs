@@ -176,12 +176,17 @@ fn main() {
         ; Discover the "interesting" parts of bitvectors---basically, the parts
         ; that are not just zero-extension or sign-extension bits.
         (relation RealBitwidth (Expr i64))
+        (rule 
+         ((Var name bw))
+         ((RealBitwidth (Var name bw) bw))
+         :ruleset typing)
         (rule
             ((= ?extended (Op1 (ZeroExtend ?n) ?expr))
              ; This is already known based on the ops above, but good for sanity
              ; checking.
              (HasType ?extended (Bitvector ?n))
-             (HasType ?expr (Bitvector ?m)))
+             (HasType ?expr (Bitvector ?m))
+             (>= ?n ?m))
             ((RealBitwidth ?extended ?m))
             :ruleset typing)
         (rule
@@ -189,7 +194,8 @@ fn main() {
              ; This is already known based on the ops above, but good for sanity
              ; checking.
              (HasType ?extended (Bitvector ?n))
-             (HasType ?expr (Bitvector ?m)))
+             (HasType ?expr (Bitvector ?m))
+             (>= ?n ?m))
             ((RealBitwidth ?extended ?m))
             :ruleset typing)
         ; Real width of an extract.
