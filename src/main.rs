@@ -461,24 +461,32 @@ fn main() {
           (> ?a-real-bw 17)
          )
          (
-          (union
-           ?expr
-           (Op2 (Concat)
-            (Op2 (Add)
-             (Op1 (SignExtend (- (+ ?a-real-bw ?b-real-bw) 17))
-              (Op2 (Mul)
-               (Op1 (SignExtend (+ (- ?a-real-bw 17) ?b-real-bw)) (Op1 (Extract (- ?a-real-bw 1) 17) a))
-               (Op1 (SignExtend (+ (- ?a-real-bw 17) ?b-real-bw)) (Op1 (Extract (- ?b-real-bw 1) 0) b))))
-             (Op1 (SignExtend (- (+ ?a-real-bw ?b-real-bw) 17))
-              (Op2 (Ashr)
-               (Op2 (Mul)
-                (Op1 (ZeroExtend (+ 17 ?b-real-bw)) (Op1 (Extract 16 0) a))
-                (Op1 (SignExtend (+ 17 ?b-real-bw)) (Op1 (Extract (- ?b-real-bw 1) 0) b)))
-               (Op0 (BV 17 (+ 17 ?b-real-bw))))))
-            (Op1 (Extract 16 0)
-             (Op2 (Mul)
-                (Op1 (ZeroExtend (+ 17 ?b-real-bw)) (Op1 (Extract 16 0) a))
-                (Op1 (SignExtend (+ 17 ?b-real-bw)) (Op1 (Extract (- ?b-real-bw 1) 0) b))))))
+          (let a0 (Op1 (Extract 16 0) ?a))
+          (let a0-bw 17)
+          (let a1 (Op1 (Extract (- ?a-real-bw 1) 17) ?a))
+          (let a1-bw (- ?a-real-bw 17))
+          (let b (Op1 (Extract (- ?b-real-bw 1) 0) ?b))
+          (let b-bw ?b-real-bw)
+          (let out-bw (+ ?a-real-bw ?b-real-bw))
+          (let lower-mul
+            (Op2 (Mul) (Op1 (ZeroExtend (+ a0-bw ?b-real-bw)) a0) (Op1 (SignExtend (+ a0-bw ?b-real-bw)) b)))
+          (let upper-mul
+            (Op2 (Mul) (Op1 (SignExtend (+ a1-bw ?b-real-bw)) a1) (Op1 (SignExtend (+ a1-bw ?b-real-bw)) b)))
+          (let rewritten
+           ; how wide should we extend the inputs of the add to? to however wide
+           ; that portion of the multiplication is. so i think it's full mul width - a0-bw
+           ; TODO still working on this
+           ;
+           ; Note that we need to extend the expression back up to the original
+           ; expr's bitwidth at the very end.
+           (Op1 (SignExtend ?expr-bw)
+            (Op2 (Concat) 
+             (Op2 (Add) 
+              (Op1 (SignExtend (- out-bw a0-bw)) upper-mul)
+              (Op1 (SignExtend (- out-bw a0-bw)) 
+               (Op2 (Ashr) lower-mul (Op0 (BV a0-bw (+ a0-bw b-bw))))))
+             (Op1 (Extract (- a0-bw 1) 0) lower-mul))))
+          (union ?expr rewritten)
          )
          :ruleset transform)
 
