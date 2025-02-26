@@ -1448,11 +1448,7 @@ pub fn to_verilog_egraph_serialize(
                         egraph[class_id]
                             .nodes
                             .iter()
-                            .map(|node_id| util::display_enode_serialized(
-                                egraph,
-                                node_id,
-                                2
-                            ))
+                            .map(|node_id| util::display_enode_serialized(egraph, node_id, 2))
                             .collect::<Vec<_>>()
                             .join("\n")
                     ))
