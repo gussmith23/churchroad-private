@@ -7,6 +7,8 @@
 (sort Expr)
 (sort ExprVec (Vec Expr))
 
+; Used to mark type errors.
+(function Bad () Expr)
 
 ; Ops
 (datatype Op
@@ -226,12 +228,15 @@
   :ruleset typing)
 ; Error checking for the above.
 (rule
-  ((Op2 op i0 i1)
+  ((= expr (Op2 op i0 i1))
    (AllBitwidthsMatch op)
    (HasType i0 (Bitvector bw))
    (HasType i1 (Bitvector bw2))
-   (!= i0 i1))
-  ((panic "AllBitwidthsMatch Op where inputs are different widths"))
+   (!= bw bw2))
+  (
+   ;(panic "AllBitwidthsMatch Op where inputs are different widths")
+   (union expr (Bad))
+  )
   :ruleset typing)
 (rule
   ((Op3 op i0 i1 i2)
