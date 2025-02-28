@@ -13,7 +13,7 @@ use std::{
     io::Write,
     path::Path,
     process::{Command, Stdio},
-    sync::Arc,
+    sync::{Arc, LazyLock},
     time::SystemTime,
 };
 use tempfile::NamedTempFile;
@@ -25,6 +25,11 @@ use egglog::{
     ArcSort, EGraph, PrimitiveLike, Term, TermDag, Value,
 };
 
+static EXPR_SORT: LazyLock<ArcSort> = std::sync::LazyLock::new(|| {
+    Arc::new(EqSort {
+        name: "Expr".into(),
+    })
+});
 pub fn call_lakeroad_on_primitive_interface_and_spec(
     serialized_egraph: &egraph_serialize::EGraph,
     spec_choices: &indexmap::IndexMap<egraph_serialize::ClassId, egraph_serialize::NodeId>,
@@ -432,7 +437,9 @@ pub fn find_primitive_interface_values(egraph: &mut EGraph) -> Vec<(ArcSort, Val
             // what it means when it's not the case.
             assert_eq!(term, output);
 
-            egraph.eval_expr(&termdag.term_to_expr(term)).unwrap()
+            egraph
+                .eval_expr(&termdag.term_to_expr(term, Span::Panic))
+                .unwrap()
         })
         .collect();
 
@@ -536,11 +543,11 @@ pub struct EnsureExtractSpecExtractor {
 impl EnsureExtractSpecExtractor {
     /// The algorithm is fairly simple: alternate between updating costs and
     /// updating node choices based on those costs until no changes occur.
-    /// 
+    ///
     /// The "costs" are HashSets associated with each eclass. The set represents
     /// the set of desired-to-be-extracted nodes that can currently be extracted
     /// by extracting the currently-chosen node at this eclass.
-    /// 
+    ///
     /// HashSets may be inefficient. If we need to make this more efficient in
     /// the future, we can use bitvectors to represent our sets, where 0 or 1
     /// represents whether a specific desired node is included.
@@ -784,7 +791,7 @@ pub fn find_spec_for_primitive_interface_including_nodes(
 }
 
 pub fn call_lakeroad_on_primitive_interface(term: &Term, term_dag: &TermDag) {
-    dbg!(term_dag.term_to_expr(term).to_string());
+    dbg!(term_dag.term_to_expr(term, Span::Panic).to_string());
 
     dbg!(to_verilog(term_dag, term_dag.lookup(term)));
 }
@@ -2414,6 +2421,7 @@ fn add_debruijnify(egraph: &mut EGraph) {
         fn apply(
             &self,
             values: &[crate::Value],
+            _sorts: (&[ArcSort], &ArcSort),
             egraph: Option<&mut EGraph>,
         ) -> Option<crate::Value> {
             let in_vec = Vec::<Value>::load(&self.in_sort, &values[0]);
@@ -2426,7 +2434,7 @@ fn add_debruijnify(egraph: &mut EGraph) {
 
             for value in in_vec {
                 // Get representative value.
-                let value = egraph.find(value);
+                let value = egraph.find(&EXPR_SORT, value);
 
                 // If we haven't assinged it a number yet, give it the next one.
                 seen_values.entry(value).or_insert_with(|| {
@@ -2734,9 +2742,9 @@ pub fn get_inputs_and_outputs(egraph: &mut EGraph) -> (Ports, Ports) {
         let in_or_out = match termdag.get(inout_term) {
             Term::App(in_or_out, v) => {
                 assert_eq!(v.len(), 0);
-                if in_or_out == "Input".into() {
+                if in_or_out.as_str() == "Input" {
                     InOut::Input
-                } else if in_or_out == "Output".into() {
+                } else if in_or_out.as_str() == "Output" {
                     InOut::Output
                 } else {
                     panic!()
@@ -2750,14 +2758,8 @@ pub fn get_inputs_and_outputs(egraph: &mut EGraph) -> (Ports, Ports) {
         let term_str = termdag.to_string(&termdag.get(churchroad_term));
         let (sort, value) = egraph
             .eval_expr(
-                &egglog::ast::parse::ExprParser::new()
-                    .parse(
-                        &Arc::new(SrcFile {
-                            name: "unused".to_owned(),
-                            contents: Some(term_str.clone()),
-                        }),
-                        &term_str,
-                    )
+                &Parser::default()
+                    .get_expr_from_string(None, &term_str)
                     .unwrap(),
             )
             .unwrap();
@@ -2935,17 +2937,7 @@ mod tests {
         // Extract reg from Egraph.
         let mut _termdag = TermDag::default();
         let (_sort, _value) = egraph
-            .eval_expr(&egglog::ast::Expr::Var(
-                Span(
-                    Arc::new(SrcFile {
-                        name: "unused".to_owned(),
-                        contents: None,
-                    }),
-                    0,
-                    0,
-                ),
-                "reg".into(),
-            ))
+            .eval_expr(&egglog::ast::Expr::Var(Span::Panic, "reg".into()))
             .unwrap();
         // This will panic, which is what we were trying to get to.
         // It panics with `No cost for Value { tag: "Expr", bits: 6 }`
@@ -2984,7 +2976,7 @@ mod tests {
             if std::env::var("DEMO_2024_02_06_WRITE_SVGS").is_err() {
                 return;
             }
-            let serialized = egraph.serialize_for_graphviz(true, usize::MAX, usize::MAX);
+            let serialized = egraph.serialize(SerializeConfig::default());
             let svg_path = Path::new(path).with_extension("svg");
             serialized.to_svg_file(svg_path).unwrap();
         }
@@ -3187,11 +3179,11 @@ mod tests {
   
   output [8-1:0] out,
 );
-  assign out = wire_Expr_11;
-  logic [8-1:0] wire_Expr_11 = 0;
+  assign out = wire_Expr_12;
+  logic [8-1:0] wire_Expr_12 = 0;
   
 always @(posedge clk) begin
-                            wire_Expr_11 <= wire_Expr_11;
+                            wire_Expr_12 <= wire_Expr_12;
                         end
 
 

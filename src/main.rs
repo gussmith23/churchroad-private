@@ -4,18 +4,27 @@ use std::fmt::Display;
 use std::fs::create_dir_all;
 use std::io::{stdin, stdout, Write};
 use std::path::PathBuf;
+use std::sync::{Arc, LazyLock};
 
 use churchroad::global_greedy_dag::GlobalGreedyDagExtractor;
 use churchroad::{
     call_lakeroad_on_primitive_interface_and_spec, find_primitive_interfaces_serialized,
     find_spec_for_primitive_interface_including_nodes, from_verilog_file, get_bitwidth_for_node,
-    get_inputs_and_outputs_serialized, to_verilog_egraph_serialize,
+    get_inputs_and_outputs_serialized, node_to_string, to_verilog_egraph_serialize, util,
+    RandomExtractor,
 };
 use clap::ValueHint::FilePath;
 use clap::{ArgAction, Parser, ValueEnum};
-use egglog::{EGraph, SerializeConfig};
+use egglog::sort::EqSort;
+use egglog::{ArcSort, EGraph, SerializeConfig};
 use log::{debug, info, warn};
 use tempfile::NamedTempFile;
+
+static EXPR_SORT: LazyLock<ArcSort> = std::sync::LazyLock::new(|| {
+    Arc::new(EqSort {
+        name: "Expr".into(),
+    })
+});
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -141,7 +150,7 @@ fn main() {
 
     if let Some(svg_dirpath) = &args.svg_dirpath {
         create_dir_all(svg_dirpath).unwrap();
-        let serialized = egraph.serialize_for_graphviz(true, usize::MAX, usize::MAX);
+        let serialized = egraph.serialize(SerializeConfig::default());
         serialized
             .to_svg_file(svg_dirpath.join("initial_egraph.svg"))
             .unwrap();
@@ -557,7 +566,7 @@ fn main() {
 
     if let Some(svg_dirpath) = &args.svg_dirpath {
         create_dir_all(svg_dirpath).unwrap();
-        let serialized = egraph.serialize_for_graphviz(true, usize::MAX, usize::MAX);
+        let serialized = egraph.serialize(SerializeConfig::default());
         serialized
             .to_svg_file(svg_dirpath.join("after_rewrites.svg"))
             .unwrap();
@@ -674,7 +683,7 @@ fn main() {
 
         // Write out image if the user requested it.
         if let Some(svg_dirpath) = &args.svg_dirpath {
-            let serialized = egraph.serialize_for_graphviz(true, usize::MAX, usize::MAX);
+            let serialized = egraph.serialize(SerializeConfig::default());
             serialized
                 .to_svg_file(svg_dirpath.join("during_lakeroad.svg"))
                 .unwrap();
@@ -687,7 +696,7 @@ fn main() {
 
     // Write out image if the user requested it.
     if let Some(svg_dirpath) = args.svg_dirpath {
-        let serialized = egraph.serialize_for_graphviz(true, usize::MAX, usize::MAX);
+        let serialized = egraph.serialize(SerializeConfig::default());
         serialized
             .to_svg_file(svg_dirpath.join("after_lakeroad.svg"))
             .unwrap();
@@ -725,7 +734,10 @@ fn main() {
                 .iter()
                 .cloned()
                 .map(|(value, output_name)| {
-                    (egraph.value_to_class_id(&egraph.find(value)), output_name)
+                    (
+                        egraph.value_to_class_id(&*EXPR_SORT, &egraph.find(&*EXPR_SORT, value)),
+                        output_name,
+                    )
                 })
                 .collect(),
         ),
