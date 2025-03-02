@@ -30,6 +30,35 @@ static EXPR_SORT: LazyLock<ArcSort> = std::sync::LazyLock::new(|| {
         name: "Expr".into(),
     })
 });
+
+/// Find instances of the `Bad` marker and print them. Would be better if we
+/// could do this just using egglog commands e.g. `(extract-variants (Bad))`,
+/// but when there's a cycle in the egraph, `extract-variants` fails.
+pub fn find_bad(egraph: &egraph_serialize::EGraph) {
+    let bad_node: Vec<_> = egraph
+        .nodes
+        .iter()
+        .filter(|(_node_id, node)| node.op == "Bad")
+        .collect();
+    assert!(bad_node.is_empty() || bad_node.len() == 1);
+    if bad_node.is_empty() {
+        return;
+    }
+
+    let (bad_node_id, _) = bad_node[0];
+
+    println!("Things unioned with (Bad):");
+
+    for node_id in &egraph[&egraph[bad_node_id].eclass].nodes {
+        let node = &egraph[node_id];
+        if node.op == "Bad" {
+            continue;
+        }
+
+        println!("{}", display_enode_serialized(egraph, node_id, 3));
+    }
+}
+
 pub fn call_lakeroad_on_primitive_interface_and_spec(
     serialized_egraph: &egraph_serialize::EGraph,
     spec_choices: &indexmap::IndexMap<egraph_serialize::ClassId, egraph_serialize::NodeId>,
