@@ -344,39 +344,50 @@ endmodule
 "#,
     );
 
-    let choices = AnythingExtractor.extract(serialized_egraph, &[]);
+    // let _choices = PrivilegeWiresExtractor.extract(serialized_egraph, &[]);
 
     // Generate port bindings.
     let mut port_to_expr_map = HashMap::new();
     port_to_expr_map.insert(
         "a".to_string(),
-        node_to_string(
-            serialized_egraph,
-            &serialized_egraph[sketch_template_node_id].children[0],
-            &choices,
-        ),
+        // New solution to hooking up inputs via unioning w/ existing
+        // expressions: Add in InputOutputMarker placeholders, and use an id that's
+        // also in the PrimitiveInterface node. Then we can quickly generate the
+        // expression as we do below. This wouldn't be necessary if we could
+        // reference eclasses in the text format.
+        // node_to_string(
+        //     serialized_egraph,
+        //     &serialized_egraph[sketch_template_node_id].children[0],
+        //     &choices,
+        // ),
+        format!("(InputOutputMarker \"a\" {input_marker_id})"),
     );
     port_to_expr_map.insert(
         "b".to_string(),
-        node_to_string(
-            serialized_egraph,
-            &serialized_egraph[sketch_template_node_id].children[1],
-            &choices,
-        ),
+        // node_to_string(
+        //     serialized_egraph,
+        //     &serialized_egraph[sketch_template_node_id].children[1],
+        //     &choices,
+        // ),
+        format!("(InputOutputMarker \"b\" {input_marker_id})"),
     );
     if serialized_egraph[sketch_template_node_id].op == "PrimitiveInterfaceDSP3" {
         port_to_expr_map.insert(
             "c".to_string(),
-            node_to_string(
-                serialized_egraph,
-                &serialized_egraph[sketch_template_node_id].children[2],
-                &choices,
-            ),
+            // node_to_string(
+            //     serialized_egraph,
+            //     &serialized_egraph[sketch_template_node_id].children[2],
+            //     &choices,
+            // ),
+            format!("(InputOutputMarker \"c\" {input_marker_id})"),
         );
     }
+    // TODO(@gussmith23): Should add checks to ensure the InputOutputMarker
+    // nodes actually exist.
     port_to_expr_map.insert(
         "out".to_string(),
-        node_to_string(serialized_egraph, sketch_template_node_id, &choices),
+        // node_to_string(serialized_egraph, sketch_template_node_id, &choices),
+        format!("(InputOutputMarker \"out\" {input_marker_id})"),
     );
 
     // TODO(@gussmith23): hardcoded module name
@@ -2383,6 +2394,7 @@ pub fn import_churchroad(egraph: &mut EGraph) {
     // the above language definitions, but it's not possible to do it in egglog,
     // hence it's a Rust function.
     add_debruijnify(egraph);
+    add_random_string(egraph); // Also add other useful custom primitives.
 
     // STEP 3: import module enumeration rewrites. These depend on the
     // `debruijnify` primitive.
@@ -2395,6 +2407,60 @@ pub fn import_churchroad(egraph: &mut EGraph) {
             ),
         )
         .unwrap();
+}
+
+/// Add the `random-string` primitive to an [`EGraph`].
+fn add_random_string(egraph: &mut EGraph) {
+    struct RandomString {
+        in_sort: Arc<I64Sort>,
+        out_sort: Arc<StringSort>,
+    }
+
+    impl PrimitiveLike for RandomString {
+        fn name(&self) -> Symbol {
+            "random-string".into()
+        }
+
+        fn get_type_constraints(&self, span: &Span) -> Box<dyn TypeConstraint> {
+            Box::new(SimpleTypeConstraint::new(
+                self.name(),
+                vec![self.in_sort.clone(), self.out_sort.clone()],
+                span.clone(),
+            ))
+        }
+
+        fn apply(
+            &self,
+            values: &[crate::Value],
+            sorts: (&[ArcSort], &ArcSort),
+            egraph: Option<&mut EGraph>,
+        ) -> Option<crate::Value> {
+            assert_eq!(values.len(), 1);
+            assert_eq!(sorts.0.len(), 1);
+            let egraph = egraph.unwrap();
+            let len = {
+                let (_, term) = egraph.extract_value(&sorts.0[0], values[0]).unwrap();
+                match term {
+                    Term::Lit(Literal::Int(len)) => len,
+                    _ => panic!(),
+                }
+            };
+
+            // Generate random string of length `len`.
+            let mut rng = rand::thread_rng();
+            let string: String = std::iter::repeat(())
+                .map(|()| rng.sample(rand::distributions::Alphanumeric) as char)
+                .take(len as usize)
+                .collect();
+
+            Some(egraph.eval_lit(&Literal::String(string.into())))
+        }
+    }
+
+    egraph.add_primitive(RandomString {
+        in_sort: Arc::new(I64Sort),
+        out_sort: Arc::new(StringSort),
+    });
 }
 
 /// Add the `debruijnify` primitive to an [`EGraph`].

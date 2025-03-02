@@ -343,5 +343,14 @@
 
 ; TODO(@gussmith23): Figure out a better interface for these, currently just
 ; adding them as needed.
-(constructor PrimitiveInterfaceDSP (Expr Expr) Expr)
-(constructor PrimitiveInterfaceDSP3 (Expr Expr Expr) Expr)
+; 
+; The string argument is a random identifier string that will also be used to
+; construct InputOutputMarker nodes which will be unioned with the input expressions.
+; This is so that we can later identify the eclasses corresponding to the
+; inputs.
+(constructor PrimitiveInterfaceDSP (String Expr Expr) Expr)
+(constructor PrimitiveInterfaceDSP3 (String Expr Expr Expr) Expr)
+; Used to mark the inputs of a PrimitiveInterfaceDSP. First string is the input
+; name, second string is the random identifier string that will be in the 
+; corresponding PrimitiveInterfaceDSP node.
+(constructor InputOutputMarker (String String) Expr)

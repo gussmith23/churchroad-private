@@ -259,7 +259,12 @@ fn main() {
             ((= ?expr (Op2 (Mul) ?a ?b))
              (HasType ?expr (Bitvector ?n))
              (< ?n 18))
-            ((union ?expr (PrimitiveInterfaceDSP ?a ?b)))
+            (
+             (let ?id (random-string 64))
+             (union ?a (InputOutputMarker "a" ?id))
+             (union ?b (InputOutputMarker "b" ?id))
+             (union ?expr (InputOutputMarker "out" ?id))
+             (union ?expr (PrimitiveInterfaceDSP ?id ?a ?b)))
             :ruleset mapping)
         ;; TODO bitwidths are hardcoded here
         (rule 
@@ -271,7 +276,12 @@ fn main() {
              (<= ?b-bw 16)
              (< ?n 36)
              )
-            ((union expr (PrimitiveInterfaceDSP ?a ?b)))
+            (
+             (let ?id (random-string 64))
+             (union ?a (InputOutputMarker "a" ?id))
+             (union ?b (InputOutputMarker "b" ?id))
+             (union expr (InputOutputMarker "out" ?id))
+             (union expr (PrimitiveInterfaceDSP ?id ?a ?b)))
             :ruleset mapping)
         (rule 
             ((= expr (Op2 (Mul) ?a ?b))
@@ -289,7 +299,11 @@ fn main() {
              ; and are thus not extractable!
              (union ?a (Op1 (ZeroExtend ?a-bw-full) (Op1 (Extract (- ?a-bw 1) 0) ?a)))
              (union ?b (Op1 (ZeroExtend ?b-bw-full) (Op1 (Extract (- ?b-bw 1) 0) ?b)))
-             (union expr (PrimitiveInterfaceDSP (Op1 (Extract (- ?a-bw 1) 0) ?a) (Op1 (Extract (- ?b-bw 1) 0) ?b))))
+             (let ?id (random-string 64))
+             (union ?a (InputOutputMarker "a" ?id))
+             (union ?b (InputOutputMarker "b" ?id))
+             (union expr (InputOutputMarker "out" ?id))
+             (union expr (PrimitiveInterfaceDSP ?id (Op1 (Extract (- ?a-bw 1) 0) ?a) (Op1 (Extract (- ?b-bw 1) 0) ?b))))
             :ruleset mapping)
         (rule 
             ((= ?expr (Op2 (Add) (Op1 ?extract-or-zero-extend-TODO-kind-of-a-hack (Op2 (Mul) ?a ?b)) ?c))
@@ -314,8 +328,14 @@ fn main() {
              (union ?a (Op1 (ZeroExtend ?a-bw-full) (Op1 (Extract (- ?a-bw 1) 0) ?a)))
              (union ?b (Op1 (ZeroExtend ?b-bw-full) (Op1 (Extract (- ?b-bw 1) 0) ?b)))
              (union ?c (Op1 (ZeroExtend ?c-bw-full) (Op1 (Extract (- ?c-bw 1) 0) ?c)))
+             (let ?id (random-string 64))
+             (union ?a (InputOutputMarker "a" ?id))
+             (union ?b (InputOutputMarker "b" ?id))
+             (union ?c (InputOutputMarker "c" ?id))
+             (union ?expr (InputOutputMarker "out" ?id))
              (union ?expr 
               (PrimitiveInterfaceDSP3 
+               ?id
                (Op1 (Extract (- ?a-bw 1) 0) ?a)
                (Op1 (Extract (- ?b-bw 1) 0) ?b)
                (Op1 (Extract (- ?c-bw 1) 0) ?c))))
@@ -347,9 +367,14 @@ fn main() {
              (union ?a (Op1 (ZeroExtend ?a-bw-full) a-extracted))
              (union ?b (Op1 (ZeroExtend ?b-bw-full) b-extracted))
              (union ?c (Op1 (ZeroExtend ?c-bw-full) c-extracted))
+             (let ?id (random-string 64))
+             (union ?a (InputOutputMarker "a" ?id))
+             (union ?b (InputOutputMarker "b" ?id))
+             (union ?c (InputOutputMarker "c" ?id))
+             (union ?expr (InputOutputMarker "out" ?id))
              (union ?expr 
               (PrimitiveInterfaceDSP3 
-               a-extracted b-extracted c-extracted)))
+               ?id a-extracted b-extracted c-extracted)))
             :ruleset mapping)
         (rule 
             ((= ?expr (Op2 (Add) (Op2 (Mul) (Op1 (ZeroExtend ?n) ?a) (Op1 (ZeroExtend ?n) ?b)) ?c))
@@ -362,7 +387,13 @@ fn main() {
              (<= ?c-bw 48)
              (< ?n 36)
              )
-            ((union ?expr (PrimitiveInterfaceDSP3 ?a ?b ?c)))
+            (
+             (let ?id (random-string 64))
+             (union ?a (InputOutputMarker "a" ?id))
+             (union ?b (InputOutputMarker "b" ?id))
+             (union ?c (InputOutputMarker "c" ?id))
+             (union ?expr (InputOutputMarker "out" ?id))
+             (union ?expr (PrimitiveInterfaceDSP3 ?id ?a ?b ?c)))
             :ruleset mapping)
         
         (ruleset transform)
