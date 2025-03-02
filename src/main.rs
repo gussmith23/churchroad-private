@@ -645,6 +645,47 @@ fn main() {
         node_ids.len()
     );
 
+    // find_bad(&serialized_egraph);
+
+    // Check that everything has a type
+    {
+        let classes_without_hastype = util::missing_hastype(&serialized_egraph);
+        if !classes_without_hastype.is_empty() {
+            let extracted = RandomExtractor.extract(&serialized_egraph, &[]);
+            // TODO(@gussmith23): Clean this up. We're currently printing out
+            // the expressions twice.
+            for class in classes_without_hastype.iter() {
+                for node_id in &serialized_egraph[class].nodes {
+                    println!(
+                        "{}",
+                        node_to_string(&serialized_egraph, node_id, &extracted)
+                    );
+                }
+            }
+            warn!(
+                "Not all classes have type information.\n{}",
+                classes_without_hastype
+                    .iter()
+                    .map(|class_id| format!(
+                        "Class ID: {}\n{}",
+                        class_id,
+                        serialized_egraph[class_id]
+                            .nodes
+                            .iter()
+                            .map(|node_id| util::display_enode_serialized(
+                                &serialized_egraph,
+                                node_id,
+                                10
+                            ))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    ))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+        }
+    }
+
     if args.interact {
         _egraph_interact(&mut egraph);
     }
