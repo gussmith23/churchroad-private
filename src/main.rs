@@ -675,12 +675,37 @@ fn main() {
         let (spec_choices, spec_node_id) = find_spec_for_primitive_interface_including_nodes(
             &serialized_egraph[sketch_template_node_id].eclass,
             &serialized_egraph,
-            // Use the children of the sketch template node as the required-to-be-extracted nodes.
-            serialized_egraph[sketch_template_node_id]
-                .children
-                .iter()
-                .cloned()
-                .collect(),
+            {
+                // Use the children of the sketch template node as the
+                // required-to-be-extracted nodes.
+                //
+                // For each of the children, ensure we're not choosing an
+                // InputOutputMarker but instead a node that can be converted to
+                // Verilog.
+                serialized_egraph[sketch_template_node_id]
+                    .children
+                    .iter()
+                    // First argument is the string ID, we can skip this.
+                    .skip(1)
+                    .map(|child_id| {
+                        let eclass = &serialized_egraph[child_id].eclass;
+                        return serialized_egraph[eclass]
+                            .nodes
+                            .iter()
+                            .find(|node_id| {
+                                let node = &serialized_egraph[*node_id];
+                                // TODO(@gussmith23): There are definitely other
+                                // things to filter here. Also, we're doing this
+                                // filtering so frequently in a few different
+                                // ways -- the logic should probably be
+                                // centralized somewhere.
+                                node.op != "InputOutputMarker"
+                            })
+                            .expect("there should be non-filtered nodes in here");
+                    })
+                    .cloned()
+                    .collect()
+            },
         );
 
         // log::info!(
