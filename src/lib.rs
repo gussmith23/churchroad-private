@@ -78,33 +78,43 @@ pub fn call_lakeroad_on_primitive_interface_and_spec(
         // );
     }
 
+    // Node should have 3 or 4 children.
+    assert!(
+        serialized_egraph[sketch_template_node_id].children.len() == 3
+            || serialized_egraph[sketch_template_node_id].children.len() == 4
+    );
+
+    // First child is the InputOutputMarker id (a string).
+    let input_marker_id =
+        &serialized_egraph[&serialized_egraph[sketch_template_node_id].children[0]].op;
+
     let a_bw = get_bitwidth_for_node(
         serialized_egraph,
-        &serialized_egraph[sketch_template_node_id].children[0],
+        &serialized_egraph[sketch_template_node_id].children[1],
     )
     .unwrap();
     let b_bw = get_bitwidth_for_node(
         serialized_egraph,
-        &serialized_egraph[sketch_template_node_id].children[1],
+        &serialized_egraph[sketch_template_node_id].children[2],
     )
     .unwrap();
 
     let mut bottom_out_at = HashMap::new();
     bottom_out_at.insert(
-        serialized_egraph[&serialized_egraph[sketch_template_node_id].children[0]]
+        serialized_egraph[&serialized_egraph[sketch_template_node_id].children[1]]
             .eclass
             .clone(),
         "a".to_string(),
     );
     bottom_out_at.insert(
-        serialized_egraph[&serialized_egraph[sketch_template_node_id].children[1]]
+        serialized_egraph[&serialized_egraph[sketch_template_node_id].children[2]]
             .eclass
             .clone(),
         "b".to_string(),
     );
     if serialized_egraph[sketch_template_node_id].op == "PrimitiveInterfaceDSP3" {
         bottom_out_at.insert(
-            serialized_egraph[&serialized_egraph[sketch_template_node_id].children[2]]
+            serialized_egraph[&serialized_egraph[sketch_template_node_id].children[3]]
                 .eclass
                 .clone(),
             "c".to_string(),
@@ -162,7 +172,7 @@ pub fn call_lakeroad_on_primitive_interface_and_spec(
     if serialized_egraph[sketch_template_node_id].op == "PrimitiveInterfaceDSP3" {
         let c_bw = get_bitwidth_for_node(
             serialized_egraph,
-            &serialized_egraph[sketch_template_node_id].children[2],
+            &serialized_egraph[sketch_template_node_id].children[3],
         )
         .unwrap();
         command
@@ -594,8 +604,13 @@ impl EnsureExtractSpecExtractor {
                         let op = &egraph[*node_id].op;
 
                         // Filter certain op types.
-                        !(["PrimitiveInterfaceDSP", "PrimitiveInterfaceDSP3", "Wire"]
-                            .contains(&op.as_str()))
+                        !([
+                            "PrimitiveInterfaceDSP",
+                            "PrimitiveInterfaceDSP3",
+                            "Wire",
+                            "InputOutputMarker",
+                        ]
+                        .contains(&op.as_str()))
                     })
                     .unwrap()
                     .clone();
