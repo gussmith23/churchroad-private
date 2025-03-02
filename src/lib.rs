@@ -1,10 +1,10 @@
 pub mod global_greedy_dag;
-mod util;
+pub mod util;
 
 use egraph_serialize::{ClassId, Node, NodeId};
 use indexmap::IndexMap;
 use log::{debug, info, warn};
-use rand::seq::SliceRandom;
+use rand::{seq::SliceRandom, Rng};
 use std::{
     collections::{HashMap, HashSet},
     env,
@@ -17,11 +17,12 @@ use std::{
     time::SystemTime,
 };
 use tempfile::NamedTempFile;
+use util::display_enode_serialized;
 
 use egglog::{
-    ast::{Literal, Span, SrcFile, Symbol},
+    ast::{Literal, Parser, Span, Symbol},
     constraint::{SimpleTypeConstraint, TypeConstraint},
-    sort::{FromSort, I64Sort, IntoSort, Sort, VecSort},
+    sort::{EqSort, FromSort, I64Sort, IntoSort, Sort, StringSort, VecSort},
     ArcSort, EGraph, PrimitiveLike, Term, TermDag, Value,
 };
 

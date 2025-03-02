@@ -66,7 +66,8 @@ impl TermDag {
 
         // NOTE: This is the only modification we made to make this work with
         // churchroad. Could find a different way to do this.
-        let node_cost = match node.op.as_str() {
+        let node_cost = node.cost;
+        // let node_cost = match node.op.as_str() {
             // "Wire" => INFINITY,
             // "Shr" | "Shl" => {
             //     warn!("Shr and Shl probably shouldn't be extractable");
@@ -74,8 +75,8 @@ impl TermDag {
             // }
             // "And" | "Add" | "Sub" | "Mul" | "Or" | "Xor" | "Eq" | "Ne" | "Not" | "ReduceOr"
             // | "ReduceAnd" | "ReduceXor" | "LogicNot" | "LogicAnd" | "LogicOr" | "Mux" => 10000.into(),
-            _ => node.cost,
-        };
+        //     _ => node.cost,
+        // };
 
         if children.is_empty() {
             let next_id = self.nodes.len();
