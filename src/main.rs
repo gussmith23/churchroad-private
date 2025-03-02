@@ -766,7 +766,7 @@ fn main() {
                 .cloned()
                 .map(|(value, output_name)| {
                     (
-                        egraph.value_to_class_id(&*EXPR_SORT, &egraph.find(&*EXPR_SORT, value)),
+                        egraph.value_to_class_id(&EXPR_SORT, &egraph.find(&EXPR_SORT, value)),
                         output_name,
                     )
                 })

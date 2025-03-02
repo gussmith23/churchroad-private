@@ -1,7 +1,7 @@
 use egraph_serialize::{ClassId, EGraph, NodeId};
 
 /// - number_of_children: depth into the tree to display. Should be renamed.
-pub(crate) fn display_enode_serialized(
+pub fn display_enode_serialized(
     egraph: &EGraph,
     node_id: &NodeId,
     number_of_children: usize,
@@ -10,7 +10,7 @@ pub(crate) fn display_enode_serialized(
         op @ ("Op0" | "Op1" | "Op2" | "Op3") => {
             format!("{} {}", op, egraph[&egraph[node_id].children[0]].op)
         }
-        op @ _ => op.to_owned(),
+        op => op.to_owned(),
     };
 
     if number_of_children == 0 {
@@ -26,7 +26,7 @@ pub(crate) fn display_enode_serialized(
     }
 }
 
-pub(crate) fn missing_hastype(egraph: &EGraph) -> Vec<ClassId> {
+pub fn missing_hastype(egraph: &EGraph) -> Vec<ClassId> {
     let classes_with_hastype = egraph
         .nodes
         .iter()
@@ -44,12 +44,11 @@ pub(crate) fn missing_hastype(egraph: &EGraph) -> Vec<ClassId> {
         .filter_map(|(class_id, class)| {
             // Ignore a bunch of types.
             // TODO(@gussmith23): This is a pretty hacky way of checking types.
-            if !class.id.to_string().starts_with("Expr")
-            {
+            if !class.id.to_string().starts_with("Expr") {
                 return None;
             }
 
-            if !classes_with_hastype.contains(&class_id) {
+            if !classes_with_hastype.contains(class_id) {
                 Some(class_id.clone())
             } else {
                 None

@@ -2821,7 +2821,7 @@ pub fn get_inputs_and_outputs(egraph: &mut EGraph) -> (Ports, Ports) {
 
         let churchroad_term = children[3];
 
-        let term_str = termdag.to_string(&termdag.get(churchroad_term));
+        let term_str = termdag.to_string(termdag.get(churchroad_term));
         let (sort, value) = egraph
             .eval_expr(
                 &Parser::default()
