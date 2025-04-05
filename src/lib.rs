@@ -3109,7 +3109,7 @@ mod tests {
             }
             let serialized = egraph.serialize(SerializeConfig::default());
             let svg_path = Path::new(path).with_extension("svg");
-            serialized.to_svg_file(svg_path).unwrap();
+            serialized.to_svg_file(svg_path, None).unwrap();
         }
 
         ///////////////////////////// BEGIN DEMO ///////////////////////////////

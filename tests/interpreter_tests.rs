@@ -55,6 +55,8 @@ fn prep_interpreter(
         // We don't care about only extracting legal structural Verilog
         // constructs when interpreting.
         structural_only: false,
+        extractable_predicate:|_, _| true,
+        fail_on_partial: false,
     }
     .extract(&serialized, &[])
     .unwrap();

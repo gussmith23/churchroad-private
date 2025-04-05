@@ -152,7 +152,7 @@ fn main() {
         create_dir_all(svg_dirpath).unwrap();
         let serialized = egraph.serialize(SerializeConfig::default());
         serialized
-            .to_svg_file(svg_dirpath.join("initial_egraph.svg"))
+            .to_svg_file(svg_dirpath.join("initial_egraph.svg"), None)
             .unwrap();
         info!(
             "Initial egraph svg: {}",
@@ -599,7 +599,7 @@ fn main() {
         create_dir_all(svg_dirpath).unwrap();
         let serialized = egraph.serialize(SerializeConfig::default());
         serialized
-            .to_svg_file(svg_dirpath.join("after_rewrites.svg"))
+            .to_svg_file(svg_dirpath.join("after_rewrites.svg"), None)
             .unwrap();
         info!(
             "Egraph after rewrites: {}",
@@ -782,7 +782,7 @@ fn main() {
         if let Some(svg_dirpath) = &args.svg_dirpath {
             let serialized = egraph.serialize(SerializeConfig::default());
             serialized
-                .to_svg_file(svg_dirpath.join("during_lakeroad.svg"))
+                .to_svg_file(svg_dirpath.join("during_lakeroad.svg"), None)
                 .unwrap();
             info!(
                 "Egraph after nth call to Lakeroad: {}",
@@ -795,7 +795,7 @@ fn main() {
     if let Some(svg_dirpath) = args.svg_dirpath {
         let serialized = egraph.serialize(SerializeConfig::default());
         serialized
-            .to_svg_file(svg_dirpath.join("after_lakeroad.svg"))
+            .to_svg_file(svg_dirpath.join("after_lakeroad.svg"), None)
             .unwrap();
         info!(
             "Egraph after all calls to Lakeroad: {}",
@@ -815,6 +815,8 @@ fn main() {
     let serialized = egraph.serialize(SerializeConfig::default());
     let choices = GlobalGreedyDagExtractor {
         structural_only: true,
+        fail_on_partial: todo!(),
+        extractable_predicate,
     }
     .extract(&serialized, &[])
     .unwrap_or_else(|e| {
