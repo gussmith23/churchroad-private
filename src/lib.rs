@@ -1492,11 +1492,15 @@ impl RandomExtractor {
                 let node_id = class
                     .nodes
                     .iter()
-                    .filter(|&node_id| egraph[node_id].op != "Wire")
+                    // Don't extract wires, don't extract subsumed nodes.
+                    .filter(|&node_id| egraph[node_id].op != "Wire" && !egraph[node_id].subsumed)
                     .cloned()
                     .collect::<Vec<_>>();
                 // debug!("Number of options: {}", node_id.len());
-                let node_id = node_id.choose(&mut rng).unwrap().clone();
+                let node_id = node_id
+                    .choose(&mut rng)
+                    .expect("There should be nodes that haven't been filtered out.")
+                    .clone();
                 (id.clone(), node_id)
             })
             .collect()
