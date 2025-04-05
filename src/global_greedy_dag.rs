@@ -43,40 +43,6 @@ pub struct TermDag {
     hash_cons: HashMap<Term, TermId>,
 }
 
-fn node_summary(node_id: &NodeId, egraph: &egraph_serialize::EGraph, depth: usize) -> String {
-    let node = &egraph[node_id];
-    let op_str = match node.op.as_str() {
-        "Op0" | "Op1" | "Op2" | "Op3" => {
-            format!("{} {}", node.op, egraph[&node.children[0]].op)
-        }
-        _ => node.op.clone(),
-    };
-    let class_str = if depth > 0 {
-        format!(" ({})", class_summary(&node.eclass, egraph, depth - 1))
-    } else {
-        "".to_string()
-    };
-
-    format!("node {} with op {}{}", node_id, op_str, class_str)
-}
-
-fn class_summary(class_id: &ClassId, egraph: &egraph_serialize::EGraph, depth: usize) -> String {
-    let class = &egraph[class_id];
-    let nodes_str = if depth > 0 {
-        format!(
-            " (nodes: {})",
-            class
-                .nodes
-                .iter()
-                .map(|nid| node_summary(nid, egraph, depth - 1))
-                .collect::<Vec<String>>()
-                .join(", ")
-        )
-    } else {
-        "".to_string()
-    };
-    format!("class {}{}", class_id, nodes_str)
-}
 
 impl TermDag {
     /// Makes a new term using a node and children terms
