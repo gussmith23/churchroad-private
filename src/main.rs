@@ -17,6 +17,7 @@ use clap::ValueHint::FilePath;
 use clap::{ArgAction, Parser, ValueEnum};
 use egglog::sort::EqSort;
 use egglog::{ArcSort, EGraph, SerializeConfig};
+use egraph_serialize::{ClassId, NodeId};
 use log::{debug, info, warn};
 use tempfile::NamedTempFile;
 
@@ -621,8 +622,397 @@ fn main() {
         //     set_of_exprs.drain().collect::<Vec<_>>().join("\n")
         // );
     }
+    {
+        // Generate a bunch of random expressions for the classes that need to
+        // be mapped. This algorithm does a BFS from the root classes, and at
+        // each class, does the following:
+        // - if the class is extractable, ignore it and don't go deeper through
+        //   this class.
+        // - if the class is unextractable and has _only_ non-whitelisted nodes,
+        //   it represents a class that is currently blocking extraction b/c it
+        //   needs a whitelisted node inserted. So we should extract random
+        //   expressions for this class and print them.
+        // - if the class is unextractable and has at least one whitelisted node
+        //   that is unextracable because its children are unextractable, go
+        //   deeper through only those children.
+
+        let serialized_egraph = egraph.serialize(SerializeConfig::default());
+
+        let roots = &outputs
+            .iter()
+            .map(|(value, _)| {
+                egraph.value_to_class_id(&EXPR_SORT, &egraph.find(&EXPR_SORT, *value))
+            })
+            .collect::<Vec<_>>();
+
+        let (class_blame, node_blame) =
+            determine_extractable(&serialized_egraph, roots, extractable_predicate);
+
+        let mut queue = vec![];
+        let mut seen = HashSet::new();
+        let mut classes_of_interest = HashSet::new();
+
+        // Start from root classes.
+        for root_class in roots {
+            queue.push(root_class.clone());
+        }
+
+        while let Some(class_id) = queue.pop() {
+            if !seen.insert(class_id.clone()) {
+                continue;
+            }
+
+            let blame = &class_blame[&class_id];
+
+            match blame {
+                ClassBlame::Extractable => {
+                    // Ignore, don't go deeper.
+                }
+                ClassBlame::UnextractableClass => {
+                    // This is a class we should generate expressions for.
+                    classes_of_interest.insert(class_id.clone());
+                }
+                ClassBlame::UnextractableNodes(node_ids) => {
+                    // This class has whitelisted nodes that can't be extracted
+                    // due to problems deeper in the tree. Go deeper.
+
+                    // for each node in this class
+                    for node_id in node_ids {
+                        // For each child of the node
+                        for child_node_id in &serialized_egraph[node_id].children {
+                            let child_class = &serialized_egraph[child_node_id].eclass;
+                            queue.push(child_class.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        // For all the classes of interest, extract random expressions.
+        const NUM_EXPRS_TO_EXTRACT: usize = 10;
+        for class_id in &classes_of_interest {
+            debug!(
+                "Class {} needs to be mapped. Example expressions:\n{}",
+                class_id,
+                (0..NUM_EXPRS_TO_EXTRACT)
+                    .map(|_| {
+                        let choices = RandomExtractor.extract(&serialized_egraph, roots);
+                        node_to_string(&serialized_egraph, &choices[class_id], &choices)
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+        }
+    }
+
+    {
+        // Write out a pruned version of the SVG.
+        let mut serialized_egraph = egraph.serialize(SerializeConfig::default());
+
+        let roots = &outputs
+            .iter()
+            .map(|(value, _)| {
+                egraph.value_to_class_id(&EXPR_SORT, &egraph.find(&EXPR_SORT, *value))
+            })
+            .collect::<Vec<_>>();
+
+        let (class_blame, node_blame) =
+            determine_extractable(&serialized_egraph, roots, extractable_predicate);
+
+        let mut keep_nodes = HashSet::new();
+
+        let mut queue = vec![];
+        let mut seen = HashSet::new();
+
+        // Add the extractable
+        for root_class in roots {
+            for node in serialized_egraph[root_class]
+                .nodes
+                .iter()
+                .filter(|node| matches!(node_blame[node], NodeBlame::UnextractableClasses(_)))
+            {
+                keep_nodes.insert(node.clone());
+                queue.push(node.clone());
+            }
+        }
+
+        // Keep all Op nodes.
+        for (node_id, node) in &serialized_egraph.nodes {
+            if node.eclass.to_string().starts_with("Op-") {
+                keep_nodes.insert(node_id.clone());
+            }
+        }
+
+        // Generate labels before we do any pruning, so that all information is
+        // available for use in generating labels.
+        let labels: HashMap<NodeId, String> = serialized_egraph
+            .nodes
+            .iter()
+            .map(|(node_id, node)| {
+                // For Op0, Op1, Op2, and Op3, we want to display the actual operation
+                // in the node name.
+                let node = &serialized_egraph.nodes[node_id];
+                if node.op == "Op0" || node.op == "Op1" || node.op == "Op2" || node.op == "Op3" {
+                    let op = serialized_egraph.nodes[&node.children[0]].op.clone();
+                    (
+                        node_id.clone(),
+                        format!(
+                            "{}{:?} {} {} {}",
+                            if roots.contains(&node.eclass) {
+                                "root "
+                            } else {
+                                ""
+                            },
+                            node_blame[node_id],
+                            node.op,
+                            op,
+                            // The children of the op itself. This makes it so that we get e.g. Op0 BV 16 32.
+                            serialized_egraph.nodes[&node.children[0]]
+                                .children
+                                .iter()
+                                .map(|child| serialized_egraph.nodes[child].op.clone())
+                                .collect::<Vec<_>>()
+                                .join(" ")
+                        ),
+                    )
+                } else {
+                    (node_id.clone(), node.op.clone())
+                }
+            })
+            .collect();
+
+        // In the first part of the pruning algorithm, BFS from the roots until
+        // we hit extractable nodes.
+        //
+        // This is the queue that the next BFS will start from. It's filled with
+        // the frontier nodes of this BFS, ie the places we stopped.
+        let mut next_queue = vec![];
+        while let Some(node_id) = queue.pop() {
+            if !seen.insert(node_id.clone()) {
+                continue;
+            }
+
+            match &node_blame[&node_id] {
+                NodeBlame::Extractable => {
+                    // Don't prune the node, but stop at this node. Don't
+                    // continue on to its children.
+                    keep_nodes.insert(node_id.clone());
+                    next_queue.push(node_id.clone());
+
+                    // Keep the children, just to see what they are.
+                    for child in &serialized_egraph[&node_id].children {
+                        let eclass_id = &serialized_egraph[child].eclass;
+                        // Push all the nodes in the eclass onto the queue, and keep all of them.
+                        for node in &serialized_egraph[eclass_id].nodes {
+                            keep_nodes.insert(node.clone());
+                        }
+                    }
+                }
+                _ => {
+                    // Don't prune the node, and keep going on to its children.
+                    // We don't stop until we hit the extractable case above.
+                    keep_nodes.insert(node_id.clone());
+
+                    for child in &serialized_egraph[&node_id].children {
+                        let eclass_id = &serialized_egraph[child].eclass;
+                        // Push all the nodes in the eclass onto the queue, and keep all of them.
+                        for node in &serialized_egraph[eclass_id].nodes {
+                            keep_nodes.insert(node.clone());
+                            queue.push(node.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Move on to the next part of the algorithm, starting from the frontier
+        // nodes generated in the fisrt BFS.
+        queue = next_queue;
+
+        while let Some(node_id) = queue.pop() {
+            if !seen.insert(node_id.clone()) {
+                continue;
+            }
+
+            // Should we keep this node? If it's unextractable and reachable
+            // from the roots, then it's interesting. if it's extractable and
+            // reachable from the roots, it's not actually that interesting.
+            // Prune it. We should keep some of the extractable nodes just for
+            // context, though.
+
+            match &node_blame[&node_id] {
+                NodeBlame::Extractable => {
+                    // Keep the node, but don't add the children.
+                    keep_nodes.insert(node_id);
+                }
+                NodeBlame::NotWhitelisted => {
+                    // Node isn't whitelisted; it's good to see it's in the
+                    // graph for context, but it's obvious why it's not
+                    // extractable so we can just prune the whole subtree.
+                    // Later, we might want to keep more of the subtree.
+                    keep_nodes.insert(node_id);
+                    // Don't add children to queue.
+                }
+                NodeBlame::UnextractableClasses(_unextractable_classes) => {
+                    // Node is whitelisted but its children aren't extractable.
+                    // This case is interesting; we should continue recursion
+                    keep_nodes.insert(node_id.clone());
+                    for child in &serialized_egraph[&node_id].children {
+                        let eclass_id = &serialized_egraph[child].eclass;
+                        // Push all the nodes in the eclass onto the queue, and keep all of them.
+                        for node in &serialized_egraph[eclass_id].nodes {
+                            keep_nodes.insert(node.clone());
+                            queue.push(node.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        for (node_id, _node) in &serialized_egraph.nodes.clone() {
+            if !keep_nodes.contains(node_id) {
+                serialized_egraph.nodes.shift_remove(node_id).unwrap();
+            }
+        }
+
+        if let Some(svg_dirpath) = &args.svg_dirpath {
+            serialized_egraph
+                .to_svg_file(svg_dirpath.join("after_rewrites_pruned.svg"), Some(labels))
+                .unwrap();
+            info!(
+                "Egraph after rewrites pruned: {}",
+                svg_dirpath
+                    .join("after_rewrites_pruned.svg")
+                    .to_string_lossy()
+            );
+        }
+
+        // for (node_id, node) in &serialized_egraph.nodes.clone() {
+        //     // If it's an Op0, Op1, Op2, or Op3, move the first child (the
+        //     // actual operation) into the op name. Has to happen before removing
+        //     // unextractable nodes.
+        //     // It seems like we can't actually modify op without breaking
+        //     // everything. Hence the label_fn lambda I added to to_svg_file.
+        //     // if node.op == "Op0" || node.op == "Op1" || node.op == "Op2" || node.op == "Op3" {
+        //     //     let op = serialized_egraph.nodes[&node.children[0]].op.clone();
+        //     //     let new_op = format!("{} {}", node.op, op);
+        //     //     debug!("Changing op from {} to {}", node.op, new_op);
+        //     //     serialized_egraph.nodes[node_id].op = new_op;
+        //     //     // serialized_egraph.nodes.shift_remove(&node.children[0]).unwrap();
+        //     // }
+
+        //     if !extractable_predicate(&serialized_egraph, node_id) {
+        //         serialized_egraph.nodes.shift_remove(node_id).unwrap();
+        //     }
+        //     // If it's a PrimitiveInterfaceDSP or PrimitiveInterfaceDSP3, remove the first child (the unique string).
+        //     if node.op == "PrimitiveInterfaceDSP" || node.op == "PrimitiveInterfaceDSP3" {
+        //         serialized_egraph
+        //             .nodes
+        //             .shift_remove(&node.children[0])
+        //             .unwrap();
+        //     }
+        // }
+        // if let Some(svg_dirpath) = &args.svg_dirpath {
+        //     serialized_egraph
+        //         .to_svg_file(
+        //             svg_dirpath.join("after_rewrites_pruned.svg"),
+        //             Some(|node_id, egraph| {
+        //                 // For Op0, Op1, Op2, and Op3, we want to display the actual operation
+        //                 // in the node name.
+        //                 let node = &egraph.nodes[node_id];
+        //                 if node.op == "Op0"
+        //                     || node.op == "Op1"
+        //                     || node.op == "Op2"
+        //                     || node.op == "Op3"
+        //                 {
+        //                     let op = egraph.nodes[&node.children[0]].op.clone();
+        //                     format!(
+        //                         "{} {} {}",
+        //                         node.op,
+        //                         op,
+        //                         // The children of the op itself. This makes it so that we get e.g. Op0 BV 16 32.
+        //                         egraph.nodes[&node.children[0]]
+        //                             .children
+        //                             .iter()
+        //                             .map(|child| egraph.nodes[child].op.clone())
+        //                             .collect::<Vec<_>>()
+        //                             .join(" ")
+        //                     )
+        //                 } else {
+        //                     node.op.clone()
+        //                 }
+        //             }),
+        //         )
+        //         .unwrap();
+        //     info!(
+        //         "Egraph after rewrites pruned: {}",
+        //         svg_dirpath
+        //             .join("after_rewrites_pruned.svg")
+        //             .to_string_lossy()
+        //     );
+        // }
+    }
+
+    if args.interact {
+        _egraph_interact(&mut egraph);
+    }
 
     let serialized_egraph = egraph.serialize(SerializeConfig::default());
+
+    {
+        let serialized_egraph = egraph.serialize(SerializeConfig::default());
+        // NEW STEP 3: attempt to extract an implementation mapped to DSPs. At this
+        // point, we'll be extracting *potential* DSPs; that is, we won't actually
+        // have attempted mapping with Lakeroad yet. The goal at this stage is to
+        // evaluate whether there is *any* potential, fully-mapped implementation of
+        // the design. If there's not, there's very little reason to start running
+        // Lakeroad. Furthermore, if there *is* a potentially fully-mapped
+        // implementation, there's no reason to run Lakeroad on potential DSPs that
+        // aren't included in that implementation. (Previously, we ran Lakeroad on
+        // all potential DSPs in the egraph, which was unnecessary.)
+        determine_extractable(
+            &serialized_egraph,
+            &outputs
+                .iter()
+                .map(|(value, _)| {
+                    egraph.value_to_class_id(&EXPR_SORT, &egraph.find(&EXPR_SORT, *value))
+                })
+                .collect::<Vec<_>>(),
+            extractable_predicate,
+        );
+        let choices = GlobalGreedyDagExtractor {
+            structural_only: true,
+            fail_on_partial: false,
+            extractable_predicate,
+        }
+        // TODO(@gussmith23): I'm surprised that roots is unused. Do you not need to
+        // care about a root to minimize for?
+        .extract(
+            &serialized_egraph,
+            &outputs
+                .iter()
+                .map(|(value, _)| {
+                    egraph.value_to_class_id(&EXPR_SORT, &egraph.find(&EXPR_SORT, *value))
+                })
+                .collect::<Vec<_>>(),
+        )
+        .unwrap_or_else(|e| {
+            panic!("Failed to extract design: {}", e);
+        });
+
+        for (value, output_name) in outputs.iter().cloned() {
+            let class_id = egraph.value_to_class_id(&EXPR_SORT, &egraph.find(&EXPR_SORT, value));
+            log::debug!(
+                "For output {}, extracted\n{}",
+                output_name,
+                node_to_string(
+                    &serialized_egraph,
+                    choices.get(&class_id).unwrap(),
+                    &choices
+                )
+            );
+        }
+    }
 
     // STEP 3: Collect all proposed mappings.
     // In this step, we simply find all mapping proposals, i.e. all places where
@@ -928,4 +1318,251 @@ fn main() {
 
         info!("Simulation with Verilator succeeded.");
     }
+}
+
+use std::collections::HashSet;
+#[derive(Debug)]
+enum ClassBlame {
+    /// Class is extractable.
+    Extractable,
+    /// Class is unextractable because none of its whitelisted nodes are extractable.
+    UnextractableNodes(Vec<NodeId>),
+    /// Class is unextractable because none of its nodes are whitelisted.
+    UnextractableClass,
+}
+#[derive(Debug)]
+enum NodeBlame {
+    /// Node is extractable.
+    Extractable,
+    NotWhitelisted,
+    /// Unextractable because at least one of its children is marked
+    /// unextractable.
+    UnextractableClasses(Vec<ClassId>),
+}
+fn determine_extractable(
+    egraph: &egraph_serialize::EGraph,
+    _roots: &[ClassId],
+    predicate: fn(&egraph_serialize::EGraph, &NodeId) -> bool,
+) -> (HashMap<ClassId, ClassBlame>, HashMap<NodeId, NodeBlame>) {
+    let mut class_blame = HashMap::new();
+    let mut node_blame = HashMap::new();
+
+    // Mark the basic nodes as extractable. I think the easiest way to do this
+    // is by the type of the node, which is currently embedded in the string id.
+    // The easiest first pass is to just mark all non-exprs as extractable, I
+    // think?
+    for (node_id, node) in &egraph.nodes {
+        let class_name = node.eclass.to_string();
+        let split: Vec<_> = class_name.split("-").collect();
+        assert_eq!(split.len(), 2);
+        let type_name = split[0];
+        // Match on the type.
+        match type_name {
+            "Op" | "Unit" | "i64" | "String" | "Type" | "PortDirection" => {
+                class_blame.insert(node.eclass.clone(), ClassBlame::Extractable);
+                node_blame.insert(node_id.clone(), NodeBlame::Extractable);
+            }
+            "Expr" => {
+                // Do nothing; we will analyze whether the Exprs are extractable below.
+            }
+            other => panic!("Unhandled type {other}"),
+        }
+    }
+
+    let mut keep_going = true;
+    while keep_going {
+        keep_going = false;
+
+        for (node_id, node) in &egraph.nodes {
+            if node_blame.contains_key(node_id) {
+                continue;
+            }
+
+            // If it's not whitelisted, then it's not extractable.
+            if !predicate(egraph, node_id) {
+                node_blame.insert(node_id.clone(), NodeBlame::NotWhitelisted);
+                keep_going = true;
+                continue;
+            }
+
+            // Get the extractability of all the classes.
+            let class_extractability = node
+                .children
+                .iter()
+                .filter_map(|child_id| {
+                    let child_id = &egraph[child_id].eclass;
+                    class_blame.get(child_id)
+                })
+                .collect::<Vec<_>>();
+
+            // If we don't have extractability information for all the classes,
+            // we can't determine the extractability of this node yet.
+            if class_extractability.len() != node.children.len() {
+                keep_going = true; // TODO this might lead to infinite loops.
+                continue;
+            }
+
+            // Otherwise, we can determine the extractability of this node.
+            // Get the list of unextractable classes.
+            let unextractable_children = node
+                .children
+                .iter()
+                .zip(class_extractability)
+                .filter_map(|(child_id, blame)| {
+                    if !matches!(blame, ClassBlame::Extractable) {
+                        Some(egraph[child_id].eclass.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            if unextractable_children.is_empty() {
+                debug!(
+                    "Node {:?} is extractable as all of its child nodes are extractable.",
+                    node_id
+                );
+                node_blame.insert(node_id.clone(), NodeBlame::Extractable);
+                keep_going = true;
+            } else {
+                node_blame.insert(
+                    node_id.clone(),
+                    NodeBlame::UnextractableClasses(unextractable_children),
+                );
+                keep_going = true;
+            }
+        }
+
+        // Iterate over all the classes and determine their extractability.
+        for (class_id, class) in egraph.classes().iter() {
+            if class_blame.contains_key(class_id) {
+                continue;
+            }
+
+            // Get the extractability of all the nodes.
+            let node_extractability = class
+                .nodes
+                .iter()
+                .filter_map(|node_id| node_blame.get(node_id))
+                .collect::<Vec<_>>();
+
+            // If any of the nodes are extractable, then the class is extractable.
+            if node_extractability
+                .iter()
+                .any(|blame| matches!(blame, NodeBlame::Extractable))
+            {
+                debug!(
+                    "Class {:?} is extractable as one of its child nodes is extractable.",
+                    class_id
+                );
+                class_blame.insert(class_id.clone(), ClassBlame::Extractable);
+                keep_going = true;
+                continue;
+            }
+
+            // If none of the nodes are currently extractable BUT we don't have
+            // extractability information for all the nodes, we can't determine
+            // the extractability of this class yet.
+            if node_extractability.len() != class.nodes.len() {
+                continue;
+            }
+
+            // Three cases:
+            // None of the nodes are whitelisted.
+            // Some of the nodes are whitelisted but none are extractable.
+            // Some of the nodes are extractable.
+            if node_extractability
+                .iter()
+                .all(|blame| matches!(blame, NodeBlame::NotWhitelisted))
+            {
+                class_blame.insert(class_id.clone(), ClassBlame::UnextractableClass);
+                keep_going = true;
+            } else if node_extractability
+                .iter()
+                .any(|blame| matches!(blame, NodeBlame::Extractable))
+            {
+                class_blame.insert(class_id.clone(), ClassBlame::Extractable);
+                keep_going = true;
+            } else {
+                // Find the unextractable nodes.
+                // TODO: do we include nodes that aren't whitelisted here?
+                let unextractable_nodes = class
+                    .nodes
+                    .iter()
+                    .filter(|node_id| !matches!(node_blame[*node_id], NodeBlame::Extractable))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                assert!(!unextractable_nodes.is_empty());
+                class_blame.insert(
+                    class_id.clone(),
+                    ClassBlame::UnextractableNodes(unextractable_nodes),
+                );
+                keep_going = true;
+            }
+        }
+    }
+
+    // Assert all classes and nodes have extractability information.
+    for (class_id, _class) in egraph.classes().iter() {
+        assert!(
+            class_blame.contains_key(class_id),
+            "Class {:?} is missing extractability information",
+            class_id
+        );
+    }
+    for (node_id, _node) in egraph.nodes.iter() {
+        assert!(node_blame.contains_key(node_id));
+    }
+
+    (class_blame, node_blame)
+}
+
+fn extractable_predicate(egraph: &egraph_serialize::EGraph, node_id: &NodeId) -> bool {
+    // Ignore Unit, as we never want to extract anything from this class.
+    if egraph[&egraph[node_id].eclass]
+        .id
+        .to_string()
+        .starts_with("Unit-")
+    {
+        return false;
+    }
+
+    let op_whitelist = vec![
+        "Op0".into(),
+        "Op1".into(),
+        "Op2".into(),
+        "Op3".into(),
+        "Var".into(),
+        "StringConsList".into(),
+        "ExprConsList".into(),
+        "GetOutput".into(),
+        "PrimitiveInterfaceDSP".into(),
+        "PrimitiveInterfaceDSP3".into(),
+    ];
+    let sub_op_whitelist = ["Extract".into(),
+        "Concat".into(),
+        "BV".into(),
+        "CRString".into(),
+        "ZeroExtend".into(),
+        "SignExtend".into(),
+        "Shr".into(),
+        "Shl".into()];
+    if !egraph[&egraph[node_id].eclass]
+        .id
+        .to_string()
+        .starts_with("Expr-")
+    {
+        return true;
+    }
+    let node = &egraph[node_id];
+    if !op_whitelist.contains(&node.op) {
+        return false;
+    }
+    if ["Op0", "Op1", "Op2", "Op3"].contains(&node.op.as_str()) {
+        let sub_op = &egraph[&node.children[0]].op;
+        if !sub_op_whitelist.contains(sub_op) {
+            return false;
+        }
+    }
+    true
 }
