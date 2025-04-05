@@ -444,26 +444,46 @@ pub fn node_to_string(
     node_id: &NodeId,
     choices: &indexmap::IndexMap<egraph_serialize::ClassId, egraph_serialize::NodeId>,
 ) -> String {
-    let node = &egraph.nodes[node_id];
-    let mut out = String::new();
-    // Don't wrap in parens when op begins with a quote or a number.
-    // TODO(@gussmith23): this is very rough.
-    let wrap_in_parens = node.op.chars().next().unwrap().is_ascii_alphabetic();
+    // This is a quick hack to ensure we don't overflow the stack. This could be
+    // made into a parameter.
+    const DEPTH: i64 = 100;
+    fn _impl(
+        egraph: &egraph_serialize::EGraph,
+        node_id: &NodeId,
+        choices: &indexmap::IndexMap<egraph_serialize::ClassId, egraph_serialize::NodeId>,
+        depth_track: i64,
+    ) -> String {
+        if depth_track < 0 {
+            return "...".to_string();
+        }
+        let node = &egraph.nodes[node_id];
+        let mut out = String::new();
+        // Don't wrap in parens when op begins with a quote or a number.
+        // TODO(@gussmith23): this is very rough.
+        let wrap_in_parens = node.op.chars().next().unwrap().is_ascii_alphabetic();
 
-    if wrap_in_parens {
-        out += "(";
-    }
-    out += node.op.as_str();
-    for child_id in &node.children {
-        out += " ";
-        out += &node_to_string(egraph, &choices[&egraph[child_id].eclass], choices);
+        if wrap_in_parens {
+            out += "(";
+        }
+        out += node.op.as_str();
+        for child_id in &node.children {
+            out += " ";
+            out += &_impl(
+                egraph,
+                &choices[&egraph[child_id].eclass],
+                choices,
+                depth_track - 1,
+            );
+        }
+
+        if wrap_in_parens {
+            out += ")";
+        }
+
+        out
     }
 
-    if wrap_in_parens {
-        out += ")";
-    }
-
-    out
+    _impl(egraph, node_id, choices, DEPTH)
 }
 
 // TODO(@gussmith23): It would be nice to not have to use a mutable reference
