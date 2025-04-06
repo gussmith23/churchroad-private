@@ -363,7 +363,7 @@ fn main() {
              ; and are thus not extractable!
              (let a-extracted (Op1 (Extract (- ?a-bw 1) 0) ?a))
              (let b-extracted (Op1 (Extract (- ?b-bw 1) 0) ?b))
-             (let c-extracted (Op1 (Extract (- ?c-bw 1) 0) ?b))
+             (let c-extracted (Op1 (Extract (- ?c-bw 1) 0) ?c))
              ; TODO zero-extending here isn't always correct.
              (union ?a (Op1 (ZeroExtend ?a-bw-full) a-extracted))
              (union ?b (Op1 (ZeroExtend ?b-bw-full) b-extracted))
