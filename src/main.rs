@@ -566,7 +566,10 @@ fn main() {
         (ruleset simplification)
         (rule
          ((= ?expr (Op1 (ZeroExtend ?m) (Op1 (ZeroExtend ?n) ?e)))
-          (>= ?m ?n))
+          (>= ?m ?n)
+          ; prevents subsumption from deleting the only thing in the eclass
+          (!= ?expr (Op1 (ZeroExtend ?m) ?e))
+          )
          ((union ?expr (Op1 (ZeroExtend ?m) ?e))
           (subsume (Op1 (ZeroExtend ?m) (Op1 (ZeroExtend ?n) ?e)))))
         ; If we're extracting through a zero-extend, we can sometimes delete the
@@ -577,9 +580,33 @@ fn main() {
           (< ?hi ?orig-bw)
           (< ?lo ?orig-bw))
          ((union ?expr (Op1 (Extract ?hi ?lo) ?e))
-          (subsume (Op1 (Extract ?hi ?lo) (Op1 (ZeroExtend ?n) ?e))))
+          ; TODO(@gussmith23): For now, best to not subsume.
+          ; I don't think I fully understand the consequences of subsumption.
+          ; I ran into an issue where we accidentally subsumed the only thing
+          ; in the eclass, which is bad. Better to know that something will be
+          ; left in the eclass before subsuming.
+          ;(subsume (Op1 (Extract ?hi ?lo) (Op1 (ZeroExtend ?n) ?e)))
+          )
          :ruleset simplification)
-
+        (rule
+         ((= ?expr (Op1 (Extract ?hi ?lo) ?e))
+          (HasType ?e (Bitvector ?bw-inner))
+          (HasType ?expr (Bitvector ?bw-outer))
+          (= ?bw-outer ?bw-inner)
+          ; It could be the case that ?expr==?e, in which case this rewrite
+          ; would only subsume the expression, which isn't useful. Imagine the
+          ; case where the expression is the only thing in the eclass; you don't
+          ; want to delete it in this case.
+          ;
+          ; On second thought, better to just not subsume til I understand it
+          ; better.
+          ;(!= ?expr ?e)
+          )
+         ((union ?expr ?e)
+          ; TODO(@gussmith23): For now, best to not subsume.
+          ;(subsume (Op1 (Extract ?hi ?lo) ?e))
+          )
+         :ruleset simplification)
    "#,
         )
         .unwrap();
