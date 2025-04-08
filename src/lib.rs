@@ -1,9 +1,10 @@
 pub mod global_greedy_dag;
 pub mod util;
 
+use core::panic;
 use egraph_serialize::{ClassId, Node, NodeId};
 use indexmap::IndexMap;
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use rand::{seq::SliceRandom, Rng};
 use std::{
     collections::{HashMap, HashSet},
@@ -1547,7 +1548,32 @@ impl RandomExtractor {
                 // debug!("Number of options: {}", node_id.len());
                 let node_id = node_id
                     .choose(&mut rng)
-                    .expect("There should be nodes that haven't been filtered out.")
+                    .unwrap_or_else(|| {
+                        error!("No nodes left to choose from.");
+                        debug!("Class ID: {}", id);
+                        debug!("Class: {:?}", class);
+                        debug!("Class nodes:");
+                        for node_id in class.nodes.iter() {
+                            debug!("{}", node_summary(node_id, egraph, 1));
+                        }
+                        // Find the nodes which reference this class.
+                        let nodes = egraph
+                            .nodes
+                            .iter()
+                            .filter(|(_, node)| {
+                                node.children
+                                    .iter()
+                                    .map(|c| &egraph[c].eclass)
+                                    .collect::<HashSet<_>>()
+                                    .contains(id)
+                            })
+                            .collect::<Vec<_>>();
+                        debug!("Nodes referencing this class:");
+                        for (node_id, _node) in nodes.iter() {
+                            debug!("{}", node_summary(node_id, egraph, 2));
+                        }
+                        panic!("No nodes left to choose from.")
+                    })
                     .clone();
                 (id.clone(), node_id)
             })
