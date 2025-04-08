@@ -34,11 +34,21 @@ static EXPR_SORT: LazyLock<ArcSort> = std::sync::LazyLock::new(|| {
 
 fn node_summary(node_id: &NodeId, egraph: &egraph_serialize::EGraph, depth: usize) -> String {
     let node = &egraph[node_id];
-    let op_str = match node.op.as_str() {
-        "Op0" | "Op1" | "Op2" | "Op3" => {
-            format!("{} {}", node.op, egraph[&node.children[0]].op)
-        }
-        _ => node.op.clone(),
+    let is_op = matches!(node.op.as_str(), "Op0" | "Op1" | "Op2" | "Op3");
+    let op_str = if is_op {
+        format!("{} {}", node.op, egraph[&node.children[0]].op)
+    } else {
+        node.op.clone()
+    };
+    let children_str = if depth > 0 {
+        node.children
+            .iter()
+            .skip(if is_op { 1 } else { 0 })
+            .map(|child_id| class_summary(&egraph[child_id].eclass.clone(), egraph, depth - 1))
+            .collect::<Vec<_>>()
+            .join(", ")
+    } else {
+        "".to_string()
     };
     let class_str = if depth > 0 {
         format!(" ({})", class_summary(&node.eclass, egraph, depth - 1))
@@ -46,7 +56,10 @@ fn node_summary(node_id: &NodeId, egraph: &egraph_serialize::EGraph, depth: usiz
         "".to_string()
     };
 
-    format!("node {} with op {}{}", node_id, op_str, class_str)
+    format!(
+        "node {} with op {} and children [ {} ]{}",
+        node_id, op_str, children_str, class_str
+    )
 }
 
 fn class_summary(class_id: &ClassId, egraph: &egraph_serialize::EGraph, depth: usize) -> String {
