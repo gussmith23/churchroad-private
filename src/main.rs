@@ -588,25 +588,26 @@ fn main() {
           ;(subsume (Op1 (Extract ?hi ?lo) (Op1 (ZeroExtend ?n) ?e)))
           )
          :ruleset simplification)
-        (rule
-         ((= ?expr (Op1 (Extract ?hi ?lo) ?e))
-          (HasType ?e (Bitvector ?bw-inner))
-          (HasType ?expr (Bitvector ?bw-outer))
-          (= ?bw-outer ?bw-inner)
-          ; It could be the case that ?expr==?e, in which case this rewrite
-          ; would only subsume the expression, which isn't useful. Imagine the
-          ; case where the expression is the only thing in the eclass; you don't
-          ; want to delete it in this case.
-          ;
-          ; On second thought, better to just not subsume til I understand it
-          ; better.
-          ;(!= ?expr ?e)
-          )
-         ((union ?expr ?e)
-          ; TODO(@gussmith23): For now, best to not subsume.
-          ;(subsume (Op1 (Extract ?hi ?lo) ?e))
-          )
-         :ruleset simplification)
+        ; This rule is inserting loops, even if we uncomment the (!= ?expr ?e) line.
+        ;(rule
+        ; ((= ?expr (Op1 (Extract ?hi ?lo) ?e))
+        ;  (HasType ?e (Bitvector ?bw-inner))
+        ;  (HasType ?expr (Bitvector ?bw-outer))
+        ;  (= ?bw-outer ?bw-inner)
+        ;  ; It could be the case that ?expr==?e, in which case this rewrite
+        ;  ; would only subsume the expression, which isn't useful. Imagine the
+        ;  ; case where the expression is the only thing in the eclass; you don't
+        ;  ; want to delete it in this case.
+        ;  ;
+        ;  ; On second thought, better to just not subsume til I understand it
+        ;  ; better.
+        ;  ;(!= ?expr ?e)
+        ;  )
+        ; ((union ?expr ?e)
+        ;  ; TODO(@gussmith23): For now, best to not subsume.
+        ;  ;(subsume (Op1 (Extract ?hi ?lo) ?e))
+        ;  )
+        ; :ruleset simplification)
    "#,
         )
         .unwrap();
