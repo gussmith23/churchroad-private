@@ -658,7 +658,7 @@ fn main() {
     egraph
         .parse_and_run_program(
             None,
-            "(run-schedule (saturate (seq (saturate typing) transform (saturate mapping) (saturate simplification) (saturate typing))))",
+            "(run-schedule (repeat 4 (seq (saturate typing) transform (saturate mapping) (saturate simplification) (saturate typing))))",
         )
         .unwrap();
 
