@@ -23,7 +23,7 @@ use util::display_enode_serialized;
 use egglog::{
     ast::{Literal, Parser, Span, Symbol},
     constraint::{SimpleTypeConstraint, TypeConstraint},
-    sort::{EqSort, FromSort, I64Sort, IntoSort, Sort, StringSort, VecSort},
+    sort::{EqSort, FromSort, I64Sort, IntoSort, Sort, StringSort, UnitSort, VecSort},
     ArcSort, EGraph, PrimitiveLike, Term, TermDag, Value,
 };
 
@@ -172,7 +172,18 @@ pub fn call_lakeroad_on_primitive_interface_and_spec(
         &serialized_egraph[sketch_template_node_id].children[1],
     )
     .unwrap();
+    let a_real_bw = get_real_bitwidth_for_node(
+        serialized_egraph,
+        &serialized_egraph[sketch_template_node_id].children[1],
+    )
+    .unwrap();
+
     let b_bw = get_bitwidth_for_node(
+        serialized_egraph,
+        &serialized_egraph[sketch_template_node_id].children[2],
+    )
+    .unwrap();
+    let b_real_bw = get_real_bitwidth_for_node(
         serialized_egraph,
         &serialized_egraph[sketch_template_node_id].children[2],
     )
@@ -237,9 +248,23 @@ pub fn call_lakeroad_on_primitive_interface_and_spec(
         .arg("--verilog-module-out-signal")
         .arg(format!("out:{out_bw}"))
         .arg("--input-signal")
-        .arg(format!("a:(port a {a_bw}):{a_bw}"))
+        .arg(format!(
+            "a:(extract {a_real_bw} 0 (port a {a_bw})):{a_real_bw}"
+        ))
+        .arg("--assume")
+        .arg(format!(
+            "(bvule (port a {a_bw}) {max_val})",
+            max_val = 2u64.pow(a_real_bw as u32) - 1
+        ))
         .arg("--input-signal")
-        .arg(format!("b:(port b {b_bw}):{b_bw}"))
+        .arg(format!(
+            "b:(extract {b_real_bw} 0 (port b {b_bw})):{b_real_bw}"
+        ))
+        .arg("--assume")
+        .arg(format!(
+            "(bvule (port b {b_bw}) {max_val})",
+            max_val = 2u64.pow(b_real_bw as u32) - 1
+        ))
         .arg("--template")
         .arg("dsp")
         .arg("--pipeline-depth")
@@ -254,9 +279,21 @@ pub fn call_lakeroad_on_primitive_interface_and_spec(
             &serialized_egraph[sketch_template_node_id].children[3],
         )
         .unwrap();
+        let c_real_bw = get_real_bitwidth_for_node(
+            serialized_egraph,
+            &serialized_egraph[sketch_template_node_id].children[3],
+        )
+        .unwrap();
         command
             .arg("--input-signal")
-            .arg(format!("c:(port c {c_bw}):{c_bw}"));
+            .arg(format!(
+                "c:(extract {c_real_bw} 0 (port c {c_bw})):{c_real_bw}"
+            ))
+            .arg("--assume")
+            .arg(format!(
+                "(bvule (port c {c_bw}) {max_val})",
+                max_val = 2u64.pow(c_real_bw as u32) - 1
+            ));
     }
     log::debug!(
         "Lakeroad command: {}",
@@ -1124,6 +1161,30 @@ pub fn interpret(
     };
 
     result
+}
+
+pub fn get_real_bitwidth_for_node(
+    egraph: &egraph_serialize::EGraph,
+    id: &NodeId,
+) -> Result<u64, String> {
+    match egraph.nodes.iter().find(|(_, node)| {
+        node.op.as_str() == "RealBitwidth" && egraph[&node.children[0]].eclass == egraph[id].eclass
+    }) {
+        Some((_, has_type_node)) => {
+            let type_node = egraph.nodes.get(&has_type_node.children[1]).unwrap();
+            assert!(type_node.op == "Bitvector");
+
+            let bw: u64 = egraph
+                .nodes
+                .get(&type_node.children[0])
+                .unwrap()
+                .op
+                .parse()
+                .unwrap();
+            Ok(bw)
+        }
+        None => Err("No RealBitwidth node found for the given ID.".to_string()),
+    }
 }
 
 pub fn get_bitwidth_for_node(
