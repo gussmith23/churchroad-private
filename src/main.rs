@@ -289,22 +289,15 @@ fn main() {
              (HasType expr (Bitvector ?n))
              (RealBitwidth ?a ?a-bw)
              (RealBitwidth ?b ?b-bw)
-             (HasType ?a (Bitvector ?a-bw-full))
-             (HasType ?b (Bitvector ?b-bw-full))
              (<= ?a-bw 16)
              (<= ?b-bw 16)
              (<= ?n 48)
              )
-            (; We need these first two unions to ensure that the new expressions for a and b are actually connected
-             ; to the other expressions in the egraph. Otherwise, they're only children of PrimitiveInterfaceDSP,
-             ; and are thus not extractable!
-             (union ?a (Op1 (ZeroExtend ?a-bw-full) (Op1 (Extract (- ?a-bw 1) 0) ?a)))
-             (union ?b (Op1 (ZeroExtend ?b-bw-full) (Op1 (Extract (- ?b-bw 1) 0) ?b)))
-             (let ?id (random-string 64))
+            ((let ?id (random-string 64))
              (union ?a (InputOutputMarker "a" ?id))
              (union ?b (InputOutputMarker "b" ?id))
              (union expr (InputOutputMarker "out" ?id))
-             (union expr (PrimitiveInterfaceDSP ?id (Op1 (Extract (- ?a-bw 1) 0) ?a) (Op1 (Extract (- ?b-bw 1) 0) ?b))))
+             (union expr (PrimitiveInterfaceDSP ?id ?a ?b)))
             :ruleset mapping)
         (rule 
             ((= ?expr (Op2 (Add) (Op1 ?extract-or-zero-extend-TODO-kind-of-a-hack (Op2 (Mul) ?a ?b)) ?c))
@@ -323,23 +316,13 @@ fn main() {
              ; TODO we need some kind of constraint here
              (<= ?add-bw 48)
              )
-            (; We need these first two unions to ensure that the new expressions for a and b are actually connected
-             ; to the other expressions in the egraph. Otherwise, they're only children of PrimitiveInterfaceDSP,
-             ; and are thus not extractable!
-             (union ?a (Op1 (ZeroExtend ?a-bw-full) (Op1 (Extract (- ?a-bw 1) 0) ?a)))
-             (union ?b (Op1 (ZeroExtend ?b-bw-full) (Op1 (Extract (- ?b-bw 1) 0) ?b)))
-             (union ?c (Op1 (ZeroExtend ?c-bw-full) (Op1 (Extract (- ?c-bw 1) 0) ?c)))
-             (let ?id (random-string 64))
+            ((let ?id (random-string 64))
              (union ?a (InputOutputMarker "a" ?id))
              (union ?b (InputOutputMarker "b" ?id))
              (union ?c (InputOutputMarker "c" ?id))
              (union ?expr (InputOutputMarker "out" ?id))
              (union ?expr 
-              (PrimitiveInterfaceDSP3 
-               ?id
-               (Op1 (Extract (- ?a-bw 1) 0) ?a)
-               (Op1 (Extract (- ?b-bw 1) 0) ?b)
-               (Op1 (Extract (- ?c-bw 1) 0) ?c))))
+              (PrimitiveInterfaceDSP3 ?id ?a ?b ?c)))
             :ruleset mapping)
         (rule 
             ((= ?expr (Op2 (Add) ?c (Op1 (SignExtend ?unused-sign-extend-bw) (Op2 (Ashr) (Op2 (Mul) ?a ?b) (Op0 (BV 17 ?unused-bv-bw))))))
@@ -358,24 +341,13 @@ fn main() {
              ; TODO we need some kind of constraint here
              (<= ?add-bw 48)
              )
-            (; We need these first two unions to ensure that the new expressions for a and b are actually connected
-             ; to the other expressions in the egraph. Otherwise, they're only children of PrimitiveInterfaceDSP,
-             ; and are thus not extractable!
-             (let a-extracted (Op1 (Extract (- ?a-bw 1) 0) ?a))
-             (let b-extracted (Op1 (Extract (- ?b-bw 1) 0) ?b))
-             (let c-extracted (Op1 (Extract (- ?c-bw 1) 0) ?c))
-             ; TODO zero-extending here isn't always correct.
-             (union ?a (Op1 (ZeroExtend ?a-bw-full) a-extracted))
-             (union ?b (Op1 (ZeroExtend ?b-bw-full) b-extracted))
-             (union ?c (Op1 (ZeroExtend ?c-bw-full) c-extracted))
-             (let ?id (random-string 64))
+            ((let ?id (random-string 64))
              (union ?a (InputOutputMarker "a" ?id))
              (union ?b (InputOutputMarker "b" ?id))
              (union ?c (InputOutputMarker "c" ?id))
              (union ?expr (InputOutputMarker "out" ?id))
              (union ?expr 
-              (PrimitiveInterfaceDSP3 
-               ?id a-extracted b-extracted c-extracted)))
+              (PrimitiveInterfaceDSP3 ?id ?a ?b ?c)))
             :ruleset mapping)
         (rule 
             ((= ?expr (Op2 (Add) (Op2 (Mul) (Op1 (ZeroExtend ?n) ?a) (Op1 (ZeroExtend ?n) ?b)) ?c))
