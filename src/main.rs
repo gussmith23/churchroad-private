@@ -524,12 +524,56 @@ fn main() {
             (Op2 (Concat) 
              (Op2 (Add) 
               (Op1 (SignExtend (- out-bw a0-bw)) upper-mul)
+              ; There might be a bug here where (- out-bw a0-bw) is less than the width of the ashr.
               (Op1 (SignExtend (- out-bw a0-bw)) 
                (Op2 (Ashr) lower-mul (Op0 (BV a0-bw (+ a0-bw b-bw))))))
              (Op1 (Extract (- a0-bw 1) 0) lower-mul))))
           (union ?expr rewritten)
          )
          :ruleset transform)
+        ; Commutated version of the above rule.
+        ; TODO(@gussmith23): these manually need to be kept in sync.
+        ; TODO(@gussmith23): Could definitely be copy-paste errors in here.
+        (rule
+         (
+          (= ?expr (Op2 (Mul) ?a ?b))
+          (RealBitwidth ?a ?a-real-bw)
+          (RealBitwidth ?b ?b-real-bw)
+          (HasType ?expr (Bitvector ?expr-bw))
+          ; Make sure we can actually split this multiply
+          (> ?b-real-bw 17)
+         )
+         (
+          (let b0 (Op1 (Extract 16 0) ?b))
+          (let b0-bw 17)
+          (let b1 (Op1 (Extract (- ?b-real-bw 1) 17) ?b))
+          (let b1-bw (- ?b-real-bw 17))
+          (let a (Op1 (Extract (- ?a-real-bw 1) 0) ?a))
+          (let a-bw ?a-real-bw)
+          (let out-bw (+ ?a-real-bw ?b-real-bw))
+          (let lower-mul
+            (Op2 (Mul) (Op1 (SignExtend (+ b0-bw ?a-real-bw)) a) (Op1 (ZeroExtend (+ b0-bw ?a-real-bw)) b0)))
+          (let upper-mul
+            (Op2 (Mul) (Op1 (SignExtend (+ b1-bw ?a-real-bw)) a) (Op1 (SignExtend (+ b1-bw ?a-real-bw)) b1)))
+          (let rewritten
+           ; how wide should we extend the inputs of the add to? to however wide
+           ; that portion of the multiplication is. so i think it's full mul width - a0-bw
+           ; TODO still working on this
+           ;
+           ; Note that we need to extend the expression back up to the original
+           ; expr's bitwidth at the very end.
+           (Op1 (SignExtend ?expr-bw)
+            (Op2 (Concat) 
+             (Op2 (Add) 
+              (Op1 (SignExtend (- out-bw b0-bw)) upper-mul)
+              ; There might be a bug here where (- out-bw b0-bw) is less than the width of the ashr.
+              (Op1 (SignExtend (- out-bw b0-bw)) 
+               (Op2 (Ashr) lower-mul (Op0 (BV b0-bw (+ b0-bw a-bw))))))
+             (Op1 (Extract (- b0-bw 1) 0) lower-mul))))
+          (union ?expr rewritten)
+         )
+         :ruleset transform)
+
 
         ; mul shrinking
         ; When a mul doesn't need all of its bits, we can shrink it and then 
