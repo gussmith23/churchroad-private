@@ -1470,7 +1470,11 @@ fn determine_extractable(
             // If we don't have extractability information for all the classes,
             // we can't determine the extractability of this node yet.
             if class_extractability.len() != node.children.len() {
-                keep_going = true; // TODO this might lead to infinite loops.
+                // keep_going = true; // TODO this might lead to infinite loops.
+                debug!(
+                    "Can't determine extractability of node {:?} as not all child classes have extractability information.",
+                    node_id
+                );
                 continue;
             }
 
@@ -1497,6 +1501,10 @@ fn determine_extractable(
                 node_blame.insert(node_id.clone(), NodeBlame::Extractable);
                 keep_going = true;
             } else {
+                debug!(
+                    "Node {:?} is unextracable as some of its children are unextractable.",
+                    node_id
+                );
                 node_blame.insert(
                     node_id.clone(),
                     NodeBlame::UnextractableClasses(unextractable_children),
@@ -1536,6 +1544,10 @@ fn determine_extractable(
             // extractability information for all the nodes, we can't determine
             // the extractability of this class yet.
             if node_extractability.len() != class.nodes.len() {
+                debug!(
+                    "Can't determine extractability of class {:?} as not all nodes have extractability information.",
+                    class_id
+                );
                 continue;
             }
 
@@ -1547,12 +1559,20 @@ fn determine_extractable(
                 .iter()
                 .all(|blame| matches!(blame, NodeBlame::NotWhitelisted))
             {
+                debug!(
+                    "Class {:?} is unextractable as none of its child nodes are whitelisted.",
+                    class_id
+                );
                 class_blame.insert(class_id.clone(), ClassBlame::UnextractableClass);
                 keep_going = true;
             } else if node_extractability
                 .iter()
                 .any(|blame| matches!(blame, NodeBlame::Extractable))
             {
+                debug!(
+                    "Class {:?} is extractable as at least one of its child nodes is extractable.",
+                    class_id
+                );
                 class_blame.insert(class_id.clone(), ClassBlame::Extractable);
                 keep_going = true;
             } else {
@@ -1570,20 +1590,39 @@ fn determine_extractable(
                     ClassBlame::UnextractableNodes(unextractable_nodes),
                 );
                 keep_going = true;
+                debug!(
+                    "Class {:?} is unextractable as none of its child nodes are extractable, but some are whitelisted.",
+                    class_id
+                );
             }
         }
     }
 
+    // If there are cycles of unextractable classes/nodes, the above algorithm
+    // will terminate without assigning all blames. Anything that is still
+    // unassigned is unextractable.
+
+    // TODO(@gussmith23): we should sanity check the results at this point
+    // to make sure we can actually find the cycle.
+
     // Assert all classes and nodes have extractability information.
     for (class_id, _class) in egraph.classes().iter() {
-        assert!(
-            class_blame.contains_key(class_id),
-            "Class {:?} is missing extractability information",
-            class_id
-        );
+        if !class_blame.contains_key(class_id) {
+            class_blame.insert(class_id.clone(), ClassBlame::UnextractableClass);
+            warn!(
+                "Class {:?} is missing extractability information, marking as unextractable",
+                class_id
+            );
+        }
     }
     for (node_id, _node) in egraph.nodes.iter() {
-        assert!(node_blame.contains_key(node_id));
+        if !node_blame.contains_key(node_id) {
+            node_blame.insert(node_id.clone(), NodeBlame::UnextractableClasses(vec![]));
+            warn!(
+                "Node {:?} is missing extractability information, marking as unextractable",
+                node_id
+            );
+        }
     }
 
     (class_blame, node_blame)
