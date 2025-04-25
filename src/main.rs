@@ -1650,14 +1650,16 @@ fn extractable_predicate(egraph: &egraph_serialize::EGraph, node_id: &NodeId) ->
         "PrimitiveInterfaceDSP".into(),
         "PrimitiveInterfaceDSP3".into(),
     ];
-    let sub_op_whitelist = ["Extract".into(),
+    let sub_op_whitelist = [
+        "Extract".into(),
         "Concat".into(),
         "BV".into(),
         "CRString".into(),
         "ZeroExtend".into(),
         "SignExtend".into(),
         "Shr".into(),
-        "Shl".into()];
+        "Shl".into(),
+    ];
     if !egraph[&egraph[node_id].eclass]
         .id
         .to_string()
