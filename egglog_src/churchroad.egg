@@ -288,11 +288,17 @@
   ((HasType (Op1 (Extract high low) expr) (Bitvector (+ 1 (- high low)))))
   :ruleset typing)
 (rule
-  ((Op1 (ZeroExtend bitwidth) expr))
+  ((Op1 (ZeroExtend bitwidth) expr)
+   (HasType expr (Bitvector n))
+   ; Extending a bitwidth must result in a larger or equal bitwidth.
+   (>= bitwidth n))
   ((HasType (Op1 (ZeroExtend bitwidth) expr) (Bitvector bitwidth)))
   :ruleset typing)
 (rule
-  ((Op1 (SignExtend bitwidth) expr))
+  ((Op1 (SignExtend bitwidth) expr)
+   (HasType expr (Bitvector n))
+   ; Extending a bitwidth must result in a larger or equal bitwidth.
+   (>= bitwidth n))
   ((HasType (Op1 (SignExtend bitwidth) expr) (Bitvector bitwidth)))
   :ruleset typing)
 (rule
