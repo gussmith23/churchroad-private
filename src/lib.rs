@@ -1170,17 +1170,11 @@ pub fn get_real_bitwidth_for_node(
     match egraph.nodes.iter().find(|(_, node)| {
         node.op.as_str() == "RealBitwidth" && egraph[&node.children[0]].eclass == egraph[id].eclass
     }) {
-        Some((_, has_type_node)) => {
-            let type_node = egraph.nodes.get(&has_type_node.children[1]).unwrap();
-            assert!(type_node.op == "Bitvector");
+        Some((_node_id, has_type_node)) => {
+            assert!(has_type_node.children[1].to_string().starts_with("primitive-i64-"));
 
-            let bw: u64 = egraph
-                .nodes
-                .get(&type_node.children[0])
-                .unwrap()
-                .op
-                .parse()
-                .unwrap();
+            let bw: u64 = egraph[&has_type_node.children[1]].op.parse().unwrap();
+
             Ok(bw)
         }
         None => Err("No RealBitwidth node found for the given ID.".to_string()),
