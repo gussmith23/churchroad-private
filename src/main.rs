@@ -775,7 +775,27 @@ fn main() {
                 class_id,
                 (0..NUM_EXPRS_TO_EXTRACT)
                     .map(|_| {
-                        let choices = RandomExtractor.extract(&serialized_egraph, roots);
+                        let choices = RandomExtractor {
+                            filter_fn: Some(Box::new(|egraph, node_id| {
+                                egraph[node_id].op != "InputOutputMarker"
+                            })),
+                            // If there's a PrimitiveInterfaceDSP or
+                            // PrimitiveInterfaceDSP3 node, choose that above
+                            // all other things.
+                            extract_fn: Some(Box::new(|egraph, class_id| {
+                                egraph[class_id]
+                                    .nodes
+                                    .iter()
+                                    .filter(|node_id| {
+                                        let node = &egraph.nodes[*node_id];
+                                        (node.op.starts_with("PrimitiveInterfaceDSP")
+                                            || node.op.starts_with("PrimitiveInterfaceDSP3"))
+                                    })
+                                    .map(|node_id| node_id.clone())
+                                    .next()
+                            })),
+                        }
+                        .extract(&serialized_egraph, roots);
                         node_to_string(&serialized_egraph, &choices[class_id], &choices)
                     })
                     .collect::<Vec<_>>()
@@ -1120,7 +1140,7 @@ fn main() {
     {
         let classes_without_hastype = util::missing_hastype(&serialized_egraph);
         if !classes_without_hastype.is_empty() {
-            let extracted = RandomExtractor.extract(&serialized_egraph, &[]);
+            let extracted = RandomExtractor::default().extract(&serialized_egraph, &[]);
             // TODO(@gussmith23): Clean this up. We're currently printing out
             // the expressions twice.
             for class in classes_without_hastype.iter() {

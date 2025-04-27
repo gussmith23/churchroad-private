@@ -1581,7 +1581,22 @@ impl AnythingExtractor {
 }
 
 #[derive(Default)]
-pub struct RandomExtractor;
+pub struct RandomExtractor {
+    /// A function which allows the user to make an extraction decision, before
+    /// we randomly choose.
+    pub extract_fn: Option<
+        Box<
+            dyn Fn(
+                &egraph_serialize::EGraph,
+                &egraph_serialize::ClassId,
+            ) -> Option<egraph_serialize::NodeId>,
+        >,
+    >,
+    /// A filter function which allows the user to filter out nodes that should
+    /// not be extracted.
+    pub filter_fn:
+        Option<Box<dyn Fn(&egraph_serialize::EGraph, &egraph_serialize::NodeId) -> bool>>,
+}
 impl RandomExtractor {
     pub fn extract(
         &self,
@@ -1601,35 +1616,32 @@ impl RandomExtractor {
                     .cloned()
                     .collect::<Vec<_>>();
                 // debug!("Number of options: {}", node_id.len());
-                let node_id = node_id
-                    .choose(&mut rng)
-                    .unwrap_or_else(|| {
-                        error!("No nodes left to choose from.");
-                        debug!("Class ID: {}", id);
-                        debug!("Class: {:?}", class);
-                        debug!("Class nodes:");
-                        for node_id in class.nodes.iter() {
-                            debug!("{}", node_summary(node_id, egraph, 1));
-                        }
-                        // Find the nodes which reference this class.
-                        let nodes = egraph
-                            .nodes
-                            .iter()
-                            .filter(|(_, node)| {
-                                node.children
-                                    .iter()
-                                    .map(|c| &egraph[c].eclass)
-                                    .collect::<HashSet<_>>()
-                                    .contains(id)
-                            })
-                            .collect::<Vec<_>>();
-                        debug!("Nodes referencing this class:");
-                        for (node_id, _node) in nodes.iter() {
-                            debug!("{}", node_summary(node_id, egraph, 2));
-                        }
-                        panic!("No nodes left to choose from.")
-                    })
-                    .clone();
+
+                // If a filter function is provided, filter the nodes.
+                let node_id = if let Some(filter_fn) = &self.filter_fn {
+                    node_id
+                        .into_iter()
+                        .filter(|node_id| filter_fn(egraph, node_id))
+                        .collect::<Vec<_>>()
+                } else {
+                    node_id
+                };
+
+                let node_id =
+                    if let Some(node_id) = &self.extract_fn.as_ref().and_then(|f| f(egraph, id)) {
+                        node_id.clone()
+                    } else {
+                        // If no extract_fn is provided, choose randomly.
+                        node_id.choose(&mut rng).cloned().unwrap_or_else(|| {
+                            error!("No nodes left to choose from for class ID: {}", id);
+                            debug!("Class: {:?}", class);
+                            debug!("Class nodes:");
+                            for node_id in class.nodes.iter() {
+                                debug!("{}", node_summary(node_id, egraph, 1));
+                            }
+                            panic!("No nodes left to choose from.")
+                        })
+                    };
                 (id.clone(), node_id)
             })
             .collect()
