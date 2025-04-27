@@ -368,6 +368,23 @@ fn main() {
              (union ?expr (InputOutputMarker "out" ?id))
              (union ?expr (PrimitiveInterfaceDSP3 ?id ?a ?b ?c)))
             :ruleset mapping)
+        ; Adder with DSP.
+        (rule 
+            ((= ?expr (Op2 (Add) ?a ?b))
+             (HasType ?expr (Bitvector ?n))
+             (RealBitwidth ?a ?a-bw)
+             (RealBitwidth ?b ?b-bw)
+             (<= ?a-bw 48)
+             (<= ?b-bw 48)
+             (<= ?n 48)
+             )
+            (
+             (let ?id (random-string 64))
+             (union ?a (InputOutputMarker "a" ?id))
+             (union ?b (InputOutputMarker "b" ?id))
+             (union ?expr (InputOutputMarker "out" ?id))
+             (union ?expr (PrimitiveInterfaceDSP ?id ?a ?b)))
+            :ruleset mapping)
         
         (ruleset transform)
         (rule
