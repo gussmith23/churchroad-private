@@ -387,67 +387,67 @@ fn main() {
             :ruleset mapping)
         
         (ruleset transform)
-        (rule
-            ((= ?expr (Op2 (Mul) (Op1 (ZeroExtend b-bw) a) b))
-             (HasType ?expr (Bitvector ?expr-bw))
-             (HasType a (Bitvector a-bw))
-             (HasType b (Bitvector b-bw))
-             (<= ?expr-bw 48)
-             (<= a-bw 16)
-             (<= b-bw 32)
-             (= 0 (% ?expr-bw 2)))
-            ((union 
-               ?expr 
-               (Op2 (Add)
-                (Op2 (Mul) (Op1 (ZeroExtend ?expr-bw) a) (Op1 (ZeroExtend ?expr-bw) (Op1 (Extract (- (/ ?expr-bw 2) 1) 0) b)))
-                (Op2 (Shl) (Op2 (Mul) (Op1 (ZeroExtend ?expr-bw) a) (Op1 (ZeroExtend ?expr-bw) (Op1 (Extract (- ?expr-bw 1) (/ ?expr-bw 2)) b))) (Op0 (BV (/ ?expr-bw 2) ?expr-bw))))))
-            :ruleset transform)
+        ;(rule
+        ;    ((= ?expr (Op2 (Mul) (Op1 (ZeroExtend b-bw) a) b))
+        ;     (HasType ?expr (Bitvector ?expr-bw))
+        ;     (HasType a (Bitvector a-bw))
+        ;     (HasType b (Bitvector b-bw))
+        ;     (<= ?expr-bw 48)
+        ;     (<= a-bw 16)
+        ;     (<= b-bw 32)
+        ;     (= 0 (% ?expr-bw 2)))
+        ;    ((union 
+        ;       ?expr 
+        ;       (Op2 (Add)
+        ;        (Op2 (Mul) (Op1 (ZeroExtend ?expr-bw) a) (Op1 (ZeroExtend ?expr-bw) (Op1 (Extract (- (/ ?expr-bw 2) 1) 0) b)))
+        ;        (Op2 (Shl) (Op2 (Mul) (Op1 (ZeroExtend ?expr-bw) a) (Op1 (ZeroExtend ?expr-bw) (Op1 (Extract (- ?expr-bw 1) (/ ?expr-bw 2)) b))) (Op0 (BV (/ ?expr-bw 2) ?expr-bw))))))
+        ;    :ruleset transform)
 
         ; General mul splitting rewrite
         ; TODO there's gotta be things wrong here w/ sign vs zero extend
         ; TODO This is buggy, keeps running forever
-        (rule
-            ((= ?expr (Op2 (Mul) ?a ?b))
-             (RealBitwidth ?b ?b-real-bw)
-             (HasType ?expr (Bitvector ?expr-bw))
-             (> ?b-real-bw 16))
-            ((union 
-               ?expr 
-               (Op2 (Add)
-                (Op2 (Mul) 
-                 ?a
-                 ; TODO hardcoded extraction width
-                 (Op1 (ZeroExtend ?expr-bw) (Op1 (Extract 15 0) ?b)))
-                (Op2 (Shl) 
-                 (Op2 (Mul) 
-                  ?a
-                  ; TODO hardcoded extraction width
-                  (Op1 (ZeroExtend ?expr-bw) (Op1 (Extract (- ?b-real-bw 1) 16) ?b)))
-                 ; TODO hardcoded shift amount
-                 (Op0 (BV 16 ?expr-bw))))))
-            :ruleset transform)
-        ; And the other direction
-        (rule
-            ((= ?expr (Op2 (Mul) ?a ?b))
-             (RealBitwidth ?a ?a-real-bw)
-             (HasType ?expr (Bitvector ?expr-bw))
-             (> ?a-real-bw 16))
-            ((union 
-               ?expr 
-               (Op2 (Add)
-                (Op2 (Mul) 
-                 ; TODO hardcoded extraction width
-                 (Op1 (ZeroExtend ?expr-bw) (Op1 (Extract 15 0) ?a))
-                 ?b)
-                (Op2 (Shl) 
-                 (Op2 (Mul) 
-                  ; TODO hardcoded extraction width
-                  (Op1 (ZeroExtend ?expr-bw) (Op1 (Extract (- ?a-real-bw 1) 16) ?a))
-                  ?b
-                  )
-                 ; TODO hardcoded shift amount
-                 (Op0 (BV 16 ?expr-bw))))))
-            :ruleset transform)
+        ;(rule
+        ;    ((= ?expr (Op2 (Mul) ?a ?b))
+        ;     (RealBitwidth ?b ?b-real-bw)
+        ;     (HasType ?expr (Bitvector ?expr-bw))
+        ;     (> ?b-real-bw 16))
+        ;    ((union 
+        ;       ?expr 
+        ;       (Op2 (Add)
+        ;        (Op2 (Mul) 
+        ;         ?a
+        ;         ; TODO hardcoded extraction width
+        ;         (Op1 (ZeroExtend ?expr-bw) (Op1 (Extract 15 0) ?b)))
+        ;        (Op2 (Shl) 
+        ;         (Op2 (Mul) 
+        ;          ?a
+        ;          ; TODO hardcoded extraction width
+        ;          (Op1 (ZeroExtend ?expr-bw) (Op1 (Extract (- ?b-real-bw 1) 16) ?b)))
+        ;         ; TODO hardcoded shift amount
+        ;         (Op0 (BV 16 ?expr-bw))))))
+        ;    :ruleset transform)
+        ;; And the other direction
+        ;(rule
+        ;    ((= ?expr (Op2 (Mul) ?a ?b))
+        ;     (RealBitwidth ?a ?a-real-bw)
+        ;     (HasType ?expr (Bitvector ?expr-bw))
+        ;     (> ?a-real-bw 16))
+        ;    ((union 
+        ;       ?expr 
+        ;       (Op2 (Add)
+        ;        (Op2 (Mul) 
+        ;         ; TODO hardcoded extraction width
+        ;         (Op1 (ZeroExtend ?expr-bw) (Op1 (Extract 15 0) ?a))
+        ;         ?b)
+        ;        (Op2 (Shl) 
+        ;         (Op2 (Mul) 
+        ;          ; TODO hardcoded extraction width
+        ;          (Op1 (ZeroExtend ?expr-bw) (Op1 (Extract (- ?a-real-bw 1) 16) ?a))
+        ;          ?b
+        ;          )
+        ;         ; TODO hardcoded shift amount
+        ;         (Op0 (BV 16 ?expr-bw))))))
+        ;    :ruleset transform)
 
         ; TODO working on this
         ; Mul splitting rewrite that is actually used to map to DSPs on Xilinx.
@@ -567,60 +567,60 @@ fn main() {
         ; mul shrinking
         ; When a mul doesn't need all of its bits, we can shrink it and then 
         ; extend the result.
-        (rule
-            ((= ?expr (Op2 (Mul) ?a ?b))
-             (RealBitwidth ?a ?a-real-bw)
-             (RealBitwidth ?b ?b-real-bw)
-             (HasType ?expr (Bitvector ?expr-bw))
-             (< (* 2 (max ?a-real-bw ?b-real-bw)) ?expr-bw))
-            ((union 
-               ?expr 
-               (Op1 (ZeroExtend ?expr-bw) 
-                (Op2 (Mul) 
-                 (Op1 (Extract (- (* 2 (max ?a-real-bw ?b-real-bw)) 1) 0) ?a)
-                 (Op1 (Extract (- (* 2 (max ?a-real-bw ?b-real-bw)) 1) 0) ?b)))))
-            :ruleset transform)
+        ;(rule
+        ;    ((= ?expr (Op2 (Mul) ?a ?b))
+        ;     (RealBitwidth ?a ?a-real-bw)
+        ;     (RealBitwidth ?b ?b-real-bw)
+        ;     (HasType ?expr (Bitvector ?expr-bw))
+        ;     (< (* 2 (max ?a-real-bw ?b-real-bw)) ?expr-bw))
+        ;    ((union 
+        ;       ?expr 
+        ;       (Op1 (ZeroExtend ?expr-bw) 
+        ;        (Op2 (Mul) 
+        ;         (Op1 (Extract (- (* 2 (max ?a-real-bw ?b-real-bw)) 1) 0) ?a)
+        ;         (Op1 (Extract (- (* 2 (max ?a-real-bw ?b-real-bw)) 1) 0) ?b)))))
+        ;    :ruleset transform)
         ; Add shrinking
-        (rule
-         ((= ?expr (Op2 (Add) ?a ?b))
-          (RealBitwidth ?a ?a-real-bw)
-          (RealBitwidth ?b ?b-real-bw)
-          (HasType ?expr (Bitvector ?expr-bw))
-          (< (max ?a-real-bw ?b-real-bw) ?expr-bw))
-         ((union 
-           ?expr 
-           (Op1 (ZeroExtend ?expr-bw) 
-            (Op2 (Add) 
-             (Op1 (Extract (- (max ?a-real-bw ?b-real-bw) 1) 0) ?a)
-             (Op1 (Extract (- (max ?a-real-bw ?b-real-bw) 1) 0) ?b)))))
-         :ruleset transform)
+        ;(rule
+        ; ((= ?expr (Op2 (Add) ?a ?b))
+        ;  (RealBitwidth ?a ?a-real-bw)
+        ;  (RealBitwidth ?b ?b-real-bw)
+        ;  (HasType ?expr (Bitvector ?expr-bw))
+        ;  (< (max ?a-real-bw ?b-real-bw) ?expr-bw))
+        ; ((union 
+        ;   ?expr 
+        ;   (Op1 (ZeroExtend ?expr-bw) 
+        ;    (Op2 (Add) 
+        ;     (Op1 (Extract (- (max ?a-real-bw ?b-real-bw) 1) 0) ?a)
+        ;     (Op1 (Extract (- (max ?a-real-bw ?b-real-bw) 1) 0) ?b)))))
+        ; :ruleset transform)
         
 
         (ruleset simplification)
-        (rule
-         ((= ?expr (Op1 (ZeroExtend ?m) (Op1 (ZeroExtend ?n) ?e)))
-          (>= ?m ?n)
-          ; prevents subsumption from deleting the only thing in the eclass
-          (!= ?expr (Op1 (ZeroExtend ?m) ?e))
-          )
-         ((union ?expr (Op1 (ZeroExtend ?m) ?e))
-          (subsume (Op1 (ZeroExtend ?m) (Op1 (ZeroExtend ?n) ?e)))))
+        ;(rule
+        ; ((= ?expr (Op1 (ZeroExtend ?m) (Op1 (ZeroExtend ?n) ?e)))
+        ;  (>= ?m ?n)
+        ;  ; prevents subsumption from deleting the only thing in the eclass
+        ;  (!= ?expr (Op1 (ZeroExtend ?m) ?e))
+        ;  )
+        ; ((union ?expr (Op1 (ZeroExtend ?m) ?e))
+        ;  (subsume (Op1 (ZeroExtend ?m) (Op1 (ZeroExtend ?n) ?e)))))
         ; If we're extracting through a zero-extend, we can sometimes delete the
         ; zero-extend.
-        (rule
-         ((= ?expr (Op1 (Extract ?hi ?lo) (Op1 (ZeroExtend ?n) ?e)))
-          (HasType ?e (Bitvector ?orig-bw))
-          (< ?hi ?orig-bw)
-          (< ?lo ?orig-bw))
-         ((union ?expr (Op1 (Extract ?hi ?lo) ?e))
-          ; TODO(@gussmith23): For now, best to not subsume.
-          ; I don't think I fully understand the consequences of subsumption.
-          ; I ran into an issue where we accidentally subsumed the only thing
-          ; in the eclass, which is bad. Better to know that something will be
-          ; left in the eclass before subsuming.
-          ;(subsume (Op1 (Extract ?hi ?lo) (Op1 (ZeroExtend ?n) ?e)))
-          )
-         :ruleset simplification)
+        ;(rule
+        ; ((= ?expr (Op1 (Extract ?hi ?lo) (Op1 (ZeroExtend ?n) ?e)))
+        ;  (HasType ?e (Bitvector ?orig-bw))
+        ;  (< ?hi ?orig-bw)
+        ;  (< ?lo ?orig-bw))
+        ; ((union ?expr (Op1 (Extract ?hi ?lo) ?e))
+        ;  ; TODO(@gussmith23): For now, best to not subsume.
+        ;  ; I don't think I fully understand the consequences of subsumption.
+        ;  ; I ran into an issue where we accidentally subsumed the only thing
+        ;  ; in the eclass, which is bad. Better to know that something will be
+        ;  ; left in the eclass before subsuming.
+        ;  (subsume (Op1 (Extract ?hi ?lo) (Op1 (ZeroExtend ?n) ?e)))
+        ;  )
+        ; :ruleset simplification)
         ; This rule is inserting loops, even if we uncomment the (!= ?expr ?e) line.
         ;(rule
         ; ((= ?expr (Op1 (Extract ?hi ?lo) ?e))
