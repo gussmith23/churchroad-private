@@ -325,7 +325,7 @@ fn main() {
               (PrimitiveInterfaceDSP3 ?id ?a ?b ?c)))
             :ruleset mapping)
         (rule 
-            ((= ?expr (Op2 (Add) ?c (Op1 (SignExtend ?unused-sign-extend-bw) (Op2 (Ashr) (Op2 (Mul) ?a ?b) (Op0 (BV 17 ?unused-bv-bw))))))
+            ((= ?expr (Op2 (Add) ?c (Op1 (SignExtend ?unused-sign-extend-bw) (Op1 (Extract ?unused-extract-idx-hi ?unused-extract-idx-lo) (Op2 (Ashr) (Op2 (Mul) ?a ?b) (Op0 (BV 17 ?unused-bv-bw)))))))
              (RealBitwidth ?a ?a-bw)
              (RealBitwidth ?b ?b-bw)
              (RealBitwidth ?c ?c-bw)
@@ -491,17 +491,19 @@ fn main() {
           (> ?a-real-bw 17)
          )
          (
-          (let a0 (Op1 (Extract 16 0) ?a))
           (let a0-bw 17)
-          (let a1 (Op1 (Extract (- ?a-real-bw 1) 17) ?a))
-          (let a1-bw (- ?a-real-bw 17))
-          (let b (Op1 (Extract (- ?b-real-bw 1) 0) ?b))
+          (let a0 (Op1 (Extract (- a0-bw 1) 0) ?a))
+          (let a1 (Op1 (Extract (- ?a-real-bw 1) a0-bw) ?a))
+          (let a1-bw (- ?a-real-bw a0-bw))
+          (let b-extracted (Op1 (Extract (- ?b-real-bw 1) 0) ?b))
           (let b-bw ?b-real-bw)
           (let out-bw (+ ?a-real-bw ?b-real-bw))
+          (let lower-mul-bw (+ a0-bw ?b-real-bw))
           (let lower-mul
-            (Op2 (Mul) (Op1 (ZeroExtend (+ a0-bw ?b-real-bw)) a0) (Op1 (SignExtend (+ a0-bw ?b-real-bw)) b)))
+            (Op2 (Mul) (Op1 (ZeroExtend lower-mul-bw) a0) (Op1 (SignExtend lower-mul-bw) b-extracted)))
+          (let upper-mul-bw (+ a1-bw ?b-real-bw))
           (let upper-mul
-            (Op2 (Mul) (Op1 (SignExtend (+ a1-bw ?b-real-bw)) a1) (Op1 (SignExtend (+ a1-bw ?b-real-bw)) b)))
+            (Op2 (Mul) (Op1 (SignExtend upper-mul-bw) a1) (Op1 (SignExtend upper-mul-bw) b-extracted)))
           (let rewritten
            ; how wide should we extend the inputs of the add to? to however wide
            ; that portion of the multiplication is. so i think it's full mul width - a0-bw
@@ -512,10 +514,10 @@ fn main() {
            (Op1 (SignExtend ?expr-bw)
             (Op2 (Concat) 
              (Op2 (Add) 
-              (Op1 (SignExtend (- out-bw a0-bw)) upper-mul)
-              ; There might be a bug here where (- out-bw a0-bw) is less than the width of the ashr.
-              (Op1 (SignExtend (- out-bw a0-bw)) 
-               (Op2 (Ashr) lower-mul (Op0 (BV a0-bw (+ a0-bw b-bw))))))
+              upper-mul
+              (Op1 (SignExtend upper-mul-bw) 
+               (Op1 (Extract (- (- lower-mul-bw a0-bw) 1) 0)
+                (Op2 (Ashr) lower-mul (Op0 (BV a0-bw lower-mul-bw))))))
              (Op1 (Extract (- a0-bw 1) 0) lower-mul))))
           (union ?expr rewritten)
          )
@@ -533,17 +535,20 @@ fn main() {
           (> ?b-real-bw 17)
          )
          (
-          (let b0 (Op1 (Extract 16 0) ?b))
           (let b0-bw 17)
-          (let b1 (Op1 (Extract (- ?b-real-bw 1) 17) ?b))
-          (let b1-bw (- ?b-real-bw 17))
-          (let a (Op1 (Extract (- ?a-real-bw 1) 0) ?a))
+          (let b0 (Op1 (Extract (- b0-bw 1) 0) ?b))
+          (let b1 (Op1 (Extract (- ?b-real-bw 1) b0-bw) ?b))
+          (let b1-bw (- ?b-real-bw b0-bw))
+          ; TODO(@gussmith23): this can't just be named a, collides with the top-level binding. we should remove those bindings...
+          (let a-extracted (Op1 (Extract (- ?a-real-bw 1) 0) ?a))
           (let a-bw ?a-real-bw)
           (let out-bw (+ ?a-real-bw ?b-real-bw))
+          (let lower-mul-bw (+ b0-bw a-bw))
+          (let upper-mul-bw (+ b1-bw a-bw))
           (let lower-mul
-            (Op2 (Mul) (Op1 (SignExtend (+ b0-bw ?a-real-bw)) a) (Op1 (ZeroExtend (+ b0-bw ?a-real-bw)) b0)))
+            (Op2 (Mul) (Op1 (SignExtend lower-mul-bw) a-extracted) (Op1 (ZeroExtend lower-mul-bw) b0)))
           (let upper-mul
-            (Op2 (Mul) (Op1 (SignExtend (+ b1-bw ?a-real-bw)) a) (Op1 (SignExtend (+ b1-bw ?a-real-bw)) b1)))
+            (Op2 (Mul) (Op1 (SignExtend upper-mul-bw) a-extracted) (Op1 (SignExtend upper-mul-bw) b1)))
           (let rewritten
            ; how wide should we extend the inputs of the add to? to however wide
            ; that portion of the multiplication is. so i think it's full mul width - a0-bw
@@ -553,11 +558,24 @@ fn main() {
            ; expr's bitwidth at the very end.
            (Op1 (SignExtend ?expr-bw)
             (Op2 (Concat) 
+             ; I think this add should just be upper-mul-bw in size.
+             ; The second concat arg is b0-bw bits wide, and the whole concat
+             ; should be b0+b1+a bits = upper-mul-bw + b0-bw.
              (Op2 (Add) 
-              (Op1 (SignExtend (- out-bw b0-bw)) upper-mul)
-              ; There might be a bug here where (- out-bw b0-bw) is less than the width of the ashr.
-              (Op1 (SignExtend (- out-bw b0-bw)) 
-               (Op2 (Ashr) lower-mul (Op0 (BV b0-bw (+ b0-bw a-bw))))))
+              ; is (- out-bw b0-bw) >= upper-mul-bw?
+              ; out-bw - b0-bw >= b1-bw + a-bw
+              ; a-bw + b1-bw + b0-bw - b0-bw >= b1-bw + a-bw
+              ; b0-bw - b0-bw >= 0
+              ; Ah, they're actually equal.
+              ; So this expr can just be upper-mul.
+              upper-mul
+              ; Do we know upper-mul-bw >= lower-mul-bw - b0-bw?
+              ; b1-bw + a-bw >= b0-bw + a-bw - b0-bw
+              ; b1-bw + a-bw >= a-bw
+              ; b1-bw >= 0
+              (Op1 (SignExtend upper-mul-bw) 
+               (Op1 (Extract (- (- lower-mul-bw b0-bw) 1) 0)
+                (Op2 (Ashr) lower-mul (Op0 (BV b0-bw (+ b0-bw a-bw)))))))
              (Op1 (Extract (- b0-bw 1) 0) lower-mul))))
           (union ?expr rewritten)
          )
