@@ -1648,7 +1648,9 @@ fn extractable_predicate(egraph: &egraph_serialize::EGraph, node_id: &NodeId) ->
         "SignExtend".into(),
         "Shr".into(),
         "Shl".into(),
+        "Ashr".into(),
     ];
+    warn!("Shift ops really should not be considered extractable, but they are for now.");
     if !egraph[&egraph[node_id].eclass]
         .id
         .to_string()
