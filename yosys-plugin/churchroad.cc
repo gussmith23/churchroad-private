@@ -25,6 +25,8 @@
 #include "kernel/rtlil.h"
 #include "kernel/sigtools.h"
 #include "kernel/yw.h"
+#include "boost/filesystem.hpp"
+#include "boost/algorithm/string/join.hpp"
 #include <string>
 #include <cassert>
 
@@ -569,7 +571,7 @@ struct LakeroadWorker
 					}
 					else
 					{
-						return stringf("(Op0 (BV %d %zu))", c.as_int(false), c.bits.size());
+						return stringf("(Op0 (BV %d %d))", c.as_int(false), c.size());
 					}
 				};
 				for (auto parameter : cell->parameters)
@@ -817,5 +819,129 @@ struct ChurchroadBackend : public Backend
 		// *f << stringf("; end of yosys output\n");
 	}
 } ChurchroadBackend;
+
+struct ChurchroadPass : public Pass
+{
+	ChurchroadPass() : Pass("churchroad", "Compile design with Churchroad.") {}
+
+	void help() override
+	{
+	}
+
+	void execute(std::vector<std::string> args, RTLIL::Design *design) override
+	{
+		log_header(design, "Executing Churchroad pass (technology mapping using Churchroad).\n");
+		log_push();
+
+		// Have to get around the reference counting that modules() does.
+		std::vector<IdString> module_names;
+		std::transform(design->modules().begin(), design->modules().end(), std::back_inserter(module_names),
+									 [](Module *module)
+									 { return module->name; });
+		for (auto name : module_names)
+		{
+			log_debug("Checking module %s for Churchroad compilation.\n", name.c_str());
+			if (std::find(args.begin(), args.end(), name.str().substr(1)) != args.end())
+				compileWithChurchroad(design->module(name), design);
+		}
+
+		log_pop();
+	}
+
+	void
+	compileWithChurchroad(RTLIL::Module *module, RTLIL::Design *design)
+	{
+		log_debug("Compiling module %s with Churchroad.\n", module->name.c_str());
+
+		auto f = [&](std::string key)
+		{
+			if (module->attributes.count(key) != 1)
+				log_error("Module %s is missing attribute %s.\n", module->name.c_str(), key.c_str());
+			return module->attributes[key];
+		};
+
+		auto architecture = f("\\architecture").decode_string();
+
+		// Initialize solvers with "bitwuzla", "stp", "yices", "cvc5" as default.
+		std::vector<std::string> solvers = {"bitwuzla", "stp", "yices", "cvc5"};
+		if (!(module->attributes.count("\\solvers") == 1 || module->attributes.count("\\solvers") == 0))
+		{
+			log_error("solvers attribute should be specified 0 or 1 times.\n");
+		}
+		if (module->attributes.count("\\solvers") == 1)
+		{
+			auto attr = module->attributes["\\solvers"].decode_string();
+			if (attr.empty())
+				log_error("solvers attribute is empty.\n");
+			// Strip whitespace and commas from beginning and end, and split by commas.
+			attr.erase(0, attr.find_first_not_of(" ,"));
+			attr.erase(attr.find_last_not_of(" ,") + 1);
+			// Split by commas.
+			std::stringstream ss(attr);
+			std::string token;
+			solvers.clear();
+			while (std::getline(ss, token, ','))
+			{
+				token.erase(0, token.find_first_not_of(" ,"));
+				token.erase(token.find_last_not_of(" ,") + 1);
+				if (!token.empty())
+					solvers.push_back(token);
+			}
+			log_debug("Using solvers: %s\n", boost::algorithm::join(solvers, ", ").c_str());
+		}
+
+		auto top_module_name = module->name.substr(1);
+		// auto module_name = sprintf("%s_synthesized_by_lakeroad", top_module_name.c_str());
+
+		// Who knew getting a named temporary file was so hard in C++? This isn't a
+		// great solution.
+		auto verilog_filename = (boost::filesystem::temp_directory_path() / boost::filesystem::unique_path("%%%%-%%%%-%%%%-%%%%.v")).native();
+		auto out_verilog_filename = (boost::filesystem::temp_directory_path() / boost::filesystem::unique_path("%%%%-%%%%-%%%%-%%%%.v")).native();
+		std::vector<std::string> write_verilog_args;
+		write_verilog_args.push_back("write_verilog");
+		write_verilog_args.push_back(verilog_filename);
+		Pass::call(design, write_verilog_args);
+
+		// TODO(@gussmith23): Churchroad should support specifying the out module
+		// name.
+		auto temp_module_name = "top";
+
+		std::string churchroad_cmd = "churchroad";
+		if (getenv("CHURCHROAD"))
+			churchroad_cmd = std::string(getenv("CHURCHROAD"));
+
+		log_debug("Using Churchroad command: %s\n", churchroad_cmd.c_str());
+
+		std::stringstream ss;
+		// clang-format off
+ss << churchroad_cmd
+		<< " --filepath " << verilog_filename 
+		<< " --top-module-name " << top_module_name
+		<< " --out-filepath " << out_verilog_filename
+		<< " --architecture " << architecture;
+		for (auto &solver : solvers)
+		{
+			ss << " --" << solver << " ";
+		}
+
+		log("Executing Churchroad:\n%s\n", ss.str().c_str());
+		if (system(ss.str().c_str()) != 0)
+			log_error("Churchroad execution failed.\n");
+
+		std::vector<std::string> read_verilog_args;
+		read_verilog_args.push_back("read_verilog");
+		read_verilog_args.push_back("-sv");
+		read_verilog_args.push_back(out_verilog_filename);
+		Pass::call(design, read_verilog_args);
+
+		log("Replacing module %s with the output of Churchroad\n", top_module_name.c_str());
+		design->remove(module);
+		auto new_module = design->module(RTLIL::escape_id(temp_module_name));
+		if (new_module == nullptr)
+			log_error("Churchroad returned OK, but no module named %s found.\n", top_module_name.c_str());
+		design->rename(new_module, RTLIL::escape_id(top_module_name));
+	}
+
+} Churchroad;
 
 PRIVATE_NAMESPACE_END
