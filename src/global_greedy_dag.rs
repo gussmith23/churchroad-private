@@ -180,7 +180,10 @@ impl GlobalGreedyDagExtractor {
     /// - roots: apparently, roots is not necessary for running global greedy
     ///   extraction. Thus, this  can be empty. If roots is not empty, this
     ///   function will perform a check to see if complete expressions are
-    ///   extracted for all roots.
+    ///   extracted for all roots. Note that this is different from
+    ///   fail_on_partial. This is a more precise check that ensures that all
+    ///   roots are extracted, while fail_on_partial checks that all classes are
+    ///   extracted.
     pub fn extract(
         &self,
         egraph: &egraph_serialize::EGraph,
