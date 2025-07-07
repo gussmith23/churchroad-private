@@ -325,7 +325,7 @@ fn main() {
               (PrimitiveInterfaceDSP3 ?id ?a ?b ?c)))
             :ruleset mapping)
         (rule 
-            ((= ?expr (Op2 (Add) ?c (Op1 (SignExtend ?unused-sign-extend-bw) (Op1 (Extract ?unused-extract-idx-hi ?unused-extract-idx-lo) (Op2 (Ashr) (Op2 (Mul) ?a ?b) (Op0 (BV 17 ?unused-bv-bw)))))))
+            ((= ?expr (Op2 (Add) (Op2 (Ashr) ?c (Op0 (BV 17 ?unused-bv-bw))) (Op1 (SignExtend ?unused-sign-extend-bw) (Op1 (Extract ?unused-extract-idx-hi ?unused-extract-idx-lo) (Op2 (Mul) ?a ?b)))))
              (RealBitwidth ?a ?a-bw)
              (RealBitwidth ?b ?b-bw)
              (RealBitwidth ?c ?c-bw)
