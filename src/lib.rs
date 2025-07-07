@@ -1174,7 +1174,9 @@ pub fn get_real_bitwidth_for_node(
         node.op.as_str() == "RealBitwidth" && egraph[&node.children[0]].eclass == egraph[id].eclass
     }) {
         Some((_node_id, has_type_node)) => {
-            assert!(has_type_node.children[1].to_string().starts_with("primitive-i64-"));
+            assert!(has_type_node.children[1]
+                .to_string()
+                .starts_with("primitive-i64-"));
 
             let bw: u64 = egraph[&has_type_node.children[1]].op.parse().unwrap();
 
