@@ -170,7 +170,6 @@ impl TermDag {
 }
 
 pub struct GlobalGreedyDagExtractor {
-    pub structural_only: bool,
     /// Whether or not to fail on partial extraction, ie. if not all classes
     /// are extracted.
     pub fail_on_partial: bool,
