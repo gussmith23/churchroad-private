@@ -6,7 +6,7 @@
 // RUN:   --svg-dirpath svgs \
 // RUN:   --simulate \
 // TODO Hardcoded
-// RUN:   --simulate-with-verilator-arg="--verilator_include_dir=/Users/gus/lakeroad-private/DSP48E2" \
+// RUN:   --simulate-with-verilator-arg="--verilator_include_dir=/Users/gussmith/lakeroad-private/DSP48E2" \
 // RUN:   --simulate-with-verilator-arg="--verilator_extra_arg=-DXIL_XECLIB" \
 // RUN:   --simulate-with-verilator-arg="--verilator_extra_arg=-Wno-UNOPTFLAT" \
 // RUN:   --simulate-with-verilator-arg="--verilator_extra_arg=-Wno-COMBDLY" \
