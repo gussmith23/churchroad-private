@@ -125,6 +125,7 @@ pub fn call_lakeroad_on_primitive_interface_and_spec(
     assert!(
         serialized_egraph[sketch_template_node_id].op == "PrimitiveInterfaceDSP"
             || serialized_egraph[sketch_template_node_id].op == "PrimitiveInterfaceDSP3"
+            || serialized_egraph[sketch_template_node_id].op == "PrimitiveInterfaceWideAddDSP"
     );
 
     let out_bw = get_bitwidth_for_node(serialized_egraph, sketch_template_node_id).unwrap();
@@ -246,29 +247,66 @@ pub fn call_lakeroad_on_primitive_interface_and_spec(
         .arg("top")
         // TODO(@gussmith23): Determine this automatically somehow.
         .arg("--verilog-module-out-signal")
-        .arg(format!("out:{out_bw}"))
-        .arg("--input-signal")
-        .arg(format!(
-            "a:(extract {a_real_bw_sub_1} 0 (port a {a_bw})):{a_real_bw}",
-            a_real_bw_sub_1 = a_real_bw - 1,
-        ))
-        .arg("--assume")
-        .arg(format!(
-            "(bvule (port a {a_bw}) (bv {max_val} {a_bw}))",
-            max_val = 2u64.pow(a_real_bw as u32) - 1
-        ))
-        .arg("--input-signal")
-        .arg(format!(
-            "b:(extract {b_real_bw_sub_1} 0 (port b {b_bw})):{b_real_bw}",
-            b_real_bw_sub_1 = b_real_bw - 1,
-        ))
-        .arg("--assume")
-        .arg(format!(
-            "(bvule (port b {b_bw}) (bv {max_val} {b_bw}))",
-            max_val = 2u64.pow(b_real_bw as u32) - 1
-        ))
-        .arg("--template")
-        .arg("dsp")
+        .arg(format!("out:{out_bw}"));
+
+    if serialized_egraph[sketch_template_node_id].op == "PrimitiveInterfaceWideAddDSP" {
+        // TODO wide add.
+        // RUN:  --input-signal 'a:(extract 47 18 (port a 48)):30' \
+        // RUN:  --input-signal 'b:(extract 17 0 (port a 48)):18' \
+        // RUN:  --input-signal 'c:(port b 48):48' \
+        assert!(a_real_bw > 18);
+        command
+            .arg("--input-signal")
+            .arg(format!(
+                "a:(extract {h} 18 (port a {a_bw})):{h_minus_l}",
+                h = a_real_bw - 1,
+                h_minus_l = a_real_bw - 18,
+            ))
+            .arg("--assume")
+            .arg(format!(
+                "(bvule (port a {a_bw}) (bv {max_val} {a_bw}))",
+                max_val = 2u64.pow(a_real_bw as u32) - 1
+            ))
+            .arg("--input-signal")
+            .arg(format!("b:(extract 17 0 (port a {a_bw})):18",))
+            .arg("--input-signal")
+            .arg(format!(
+                "c:(extract {b_real_bw_sub_1} 0 (port b {b_bw})):{b_bw}",
+                b_real_bw_sub_1 = b_real_bw - 1,
+            ))
+            .arg("--assume")
+            .arg(format!(
+                "(bvule (port b {b_bw}) (bv {max_val} {b_bw}))",
+                max_val = 2u64.pow(b_real_bw as u32) - 1
+            ))
+            .arg("--template")
+            .arg("dsp");
+    } else {
+        command
+            .arg("--input-signal")
+            .arg(format!(
+                "a:(extract {a_real_bw_sub_1} 0 (port a {a_bw})):{a_real_bw}",
+                a_real_bw_sub_1 = a_real_bw - 1,
+            ))
+            .arg("--assume")
+            .arg(format!(
+                "(bvule (port a {a_bw}) (bv {max_val} {a_bw}))",
+                max_val = 2u64.pow(a_real_bw as u32) - 1
+            ))
+            .arg("--input-signal")
+            .arg(format!(
+                "b:(extract {b_real_bw_sub_1} 0 (port b {b_bw})):{b_real_bw}",
+                b_real_bw_sub_1 = b_real_bw - 1,
+            ))
+            .arg("--assume")
+            .arg(format!(
+                "(bvule (port b {b_bw}) (bv {max_val} {b_bw}))",
+                max_val = 2u64.pow(b_real_bw as u32) - 1
+            ))
+            .arg("--template")
+            .arg("dsp");
+    }
+    command
         .arg("--pipeline-depth")
         .arg("0")
         .arg("--out-format")
