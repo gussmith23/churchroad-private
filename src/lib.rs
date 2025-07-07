@@ -1891,6 +1891,22 @@ pub fn to_verilog_egraph_serialize(
                     maybe_push_expr_on_queue(&mut queue, &done, &egraph[&term.children[1]].eclass);
 
                     }
+                    "SignExtend" => {
+                        assert_eq!(op_node.children.len(), 1);
+                        assert_eq!(term.children.len(), 2);
+                        let bw = egraph[&op_node.children[0]].op.parse::<i64>().unwrap();
+                        logic_declarations.push_str(
+                        format!(
+                            "logic [{bw}-1:0] {this_wire} = {bw}'($signed({value}));\n",
+                            this_wire = id_to_wire_name(&id),
+                            value = id_to_wire_name(&egraph[&term.children[1]].eclass)
+
+                        )
+                        .as_str(),
+                    );
+                    maybe_push_expr_on_queue(&mut queue, &done, &egraph[&term.children[1]].eclass);
+
+                    }
                     "CRString" => {
                         assert_eq!(op_node.children.len(), 1);
                         let value = &egraph[&op_node.children[0]].op;
@@ -2025,6 +2041,31 @@ pub fn to_verilog_egraph_serialize(
                     let e1_id = egraph.nid_to_cid(&term.children[2]);
                     logic_declarations.push_str(&format!(
                         "logic [{bw}-1:0] {this_wire} = {e0} << {e1};\n",
+                        bw = get_bitwidth_for_node(egraph, node_id).unwrap(),
+                        this_wire = id_to_wire_name(id),
+                        e0 = id_to_wire_name(e0_id),
+                        e1 = id_to_wire_name(e1_id)
+                    ));
+                    maybe_push_expr_on_queue(&mut queue, &done, e0_id);
+                    maybe_push_expr_on_queue(&mut queue, &done, e1_id);
+                }
+                "Ashr" => {
+                    assert_eq!(term.children.len(), 3);
+
+                    // These only have to hold for structural verilog. These
+                    // checks should be removed in the future once I figure out
+                    // how to deal with shifts in structural Verilog. (namely,
+                    // do we want to allow shifts, or do we want to convert them
+                    // to something else using rewrites and constant
+                    // propagation?)
+                    assert!(egraph[&term.children[2]].op == "Op0");
+                    assert!(egraph[&egraph[&term.children[2]].children[0]].op == "BV");
+
+                    let id = &term.eclass;
+                    let e0_id = egraph.nid_to_cid(&term.children[1]);
+                    let e1_id = egraph.nid_to_cid(&term.children[2]);
+                    logic_declarations.push_str(&format!(
+                        "logic [{bw}-1:0] {this_wire} = {e0} >>> {e1};\n",
                         bw = get_bitwidth_for_node(egraph, node_id).unwrap(),
                         this_wire = id_to_wire_name(id),
                         e0 = id_to_wire_name(e0_id),
