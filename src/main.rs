@@ -1304,9 +1304,9 @@ fn main() {
 
     let serialized = egraph.serialize(SerializeConfig::default());
     let choices = GlobalGreedyDagExtractor {
-        structural_only: true,
-        fail_on_partial: todo!(),
-        extractable_predicate,
+        // This can be false as long as we set roots to a value in extract().
+        fail_on_partial: false,
+        extractable_predicate: structural_predicate,
     }
     .extract(
         &serialized,
@@ -1687,6 +1687,58 @@ fn extractable_predicate(egraph: &egraph_serialize::EGraph, node_id: &NodeId) ->
         "PrimitiveInterfaceDSP".into(),
         "PrimitiveInterfaceDSP3".into(),
         "PrimitiveInterfaceWideAddDSP".into(),
+    ];
+    let sub_op_whitelist = [
+        "Extract".into(),
+        "Concat".into(),
+        "BV".into(),
+        "CRString".into(),
+        "ZeroExtend".into(),
+        "SignExtend".into(),
+        "Shr".into(),
+        "Shl".into(),
+        "Ashr".into(),
+    ];
+    warn!("Shift ops really should not be considered extractable, but they are for now.");
+    if !egraph[&egraph[node_id].eclass]
+        .id
+        .to_string()
+        .starts_with("Expr-")
+    {
+        return true;
+    }
+    let node = &egraph[node_id];
+    if !op_whitelist.contains(&node.op) {
+        return false;
+    }
+    if ["Op0", "Op1", "Op2", "Op3"].contains(&node.op.as_str()) {
+        let sub_op = &egraph[&node.children[0]].op;
+        if !sub_op_whitelist.contains(sub_op) {
+            return false;
+        }
+    }
+    true
+}
+/// Whether a node is valid for structural Verilog.
+fn structural_predicate(egraph: &egraph_serialize::EGraph, node_id: &NodeId) -> bool {
+    // Ignore Unit, as we never want to extract anything from this class.
+    if egraph[&egraph[node_id].eclass]
+        .id
+        .to_string()
+        .starts_with("Unit-")
+    {
+        return false;
+    }
+
+    let op_whitelist = vec![
+        "Op0".into(),
+        "Op1".into(),
+        "Op2".into(),
+        "Op3".into(),
+        "Var".into(),
+        "StringConsList".into(),
+        "ExprConsList".into(),
+        "GetOutput".into(),
     ];
     let sub_op_whitelist = [
         "Extract".into(),
