@@ -1308,7 +1308,16 @@ fn main() {
         fail_on_partial: todo!(),
         extractable_predicate,
     }
-    .extract(&serialized, &[])
+    .extract(
+        &serialized,
+        &outputs
+            .iter()
+            .cloned()
+            .map(|(value, _output_name)| {
+                egraph.value_to_class_id(&EXPR_SORT, &egraph.find(&EXPR_SORT, value))
+            })
+            .collect::<Vec<_>>()[..],
+    )
     .unwrap_or_else(|e| {
         panic!("Failed to extract design: {}", e);
     });
