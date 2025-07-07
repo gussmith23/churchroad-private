@@ -43,7 +43,6 @@ pub struct TermDag {
     hash_cons: HashMap<Term, TermId>,
 }
 
-
 impl TermDag {
     /// Makes a new term using a node and children terms
     /// Correctly computes total_cost with sharing
@@ -278,7 +277,6 @@ impl GlobalGreedyDagExtractor {
             let mut needed_classes = HashSet::new();
 
             while let Some(cid) = queue.pop() {
-                
                 if seen_classes.contains(cid) {
                     continue;
                 }
