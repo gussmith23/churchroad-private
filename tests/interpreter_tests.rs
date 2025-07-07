@@ -1,6 +1,6 @@
 // This file contains tests for the interpreter module.
 
-use std::{fmt::Write, fs, io::Write as IOWrite, path::PathBuf, usize, vec};
+use std::{fmt::Write, fs, io::Write as IOWrite, path::PathBuf, vec};
 
 use egraph_serialize::{ClassId, NodeId};
 use indexmap::IndexMap;
@@ -55,8 +55,11 @@ fn prep_interpreter(
         // We don't care about only extracting legal structural Verilog
         // constructs when interpreting.
         structural_only: false,
+        extractable_predicate: |_, _| true,
+        fail_on_partial: false,
     }
-    .extract(&serialized, &[]);
+    .extract(&serialized, &[])
+    .unwrap();
 
     let (_, is_output_node) = serialized
         .nodes
