@@ -355,6 +355,7 @@
 ; This is so that we can later identify the eclasses corresponding to the
 ; inputs.
 (constructor PrimitiveInterfaceDSP (String Expr Expr) Expr)
+(constructor PrimitiveInterfaceWideAddDSP (String Expr Expr) Expr)
 (constructor PrimitiveInterfaceDSP3 (String Expr Expr Expr) Expr)
 ; Used to mark the inputs of a PrimitiveInterfaceDSP. First string is the input
 ; name, second string is the random identifier string that will be in the 

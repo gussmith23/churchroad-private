@@ -383,7 +383,7 @@ fn main() {
              (union ?a (InputOutputMarker "a" ?id))
              (union ?b (InputOutputMarker "b" ?id))
              (union ?expr (InputOutputMarker "out" ?id))
-             (union ?expr (PrimitiveInterfaceDSP ?id ?a ?b)))
+             (union ?expr (PrimitiveInterfaceWideAddDSP ?id ?a ?b)))
             :ruleset mapping)
         
         (ruleset transform)
@@ -1677,6 +1677,7 @@ fn extractable_predicate(egraph: &egraph_serialize::EGraph, node_id: &NodeId) ->
         "GetOutput".into(),
         "PrimitiveInterfaceDSP".into(),
         "PrimitiveInterfaceDSP3".into(),
+        "PrimitiveInterfaceWideAddDSP".into(),
     ];
     let sub_op_whitelist = [
         "Extract".into(),
