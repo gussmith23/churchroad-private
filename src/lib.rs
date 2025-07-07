@@ -249,20 +249,22 @@ pub fn call_lakeroad_on_primitive_interface_and_spec(
         .arg(format!("out:{out_bw}"))
         .arg("--input-signal")
         .arg(format!(
-            "a:(extract {a_real_bw} 0 (port a {a_bw})):{a_real_bw}"
+            "a:(extract {a_real_bw_sub_1} 0 (port a {a_bw})):{a_real_bw}",
+            a_real_bw_sub_1 = a_real_bw - 1,
         ))
         .arg("--assume")
         .arg(format!(
-            "(bvule (port a {a_bw}) {max_val})",
+            "(bvule (port a {a_bw}) (bv {max_val} {a_bw}))",
             max_val = 2u64.pow(a_real_bw as u32) - 1
         ))
         .arg("--input-signal")
         .arg(format!(
-            "b:(extract {b_real_bw} 0 (port b {b_bw})):{b_real_bw}"
+            "b:(extract {b_real_bw_sub_1} 0 (port b {b_bw})):{b_real_bw}",
+            b_real_bw_sub_1 = b_real_bw - 1,
         ))
         .arg("--assume")
         .arg(format!(
-            "(bvule (port b {b_bw}) {max_val})",
+            "(bvule (port b {b_bw}) (bv {max_val} {b_bw}))",
             max_val = 2u64.pow(b_real_bw as u32) - 1
         ))
         .arg("--template")
@@ -287,11 +289,12 @@ pub fn call_lakeroad_on_primitive_interface_and_spec(
         command
             .arg("--input-signal")
             .arg(format!(
-                "c:(extract {c_real_bw} 0 (port c {c_bw})):{c_real_bw}"
+                "c:(extract {c_real_bw_sub_1} 0 (port c {c_bw})):{c_real_bw}",
+                c_real_bw_sub_1 = c_real_bw - 1,
             ))
             .arg("--assume")
             .arg(format!(
-                "(bvule (port c {c_bw}) {max_val})",
+                "(bvule (port c {c_bw}) (bv {max_val} {c_bw}))",
                 max_val = 2u64.pow(c_real_bw as u32) - 1
             ));
     }
