@@ -153,7 +153,7 @@ fn main() {
         create_dir_all(svg_dirpath).unwrap();
         let serialized = egraph.serialize(SerializeConfig::default());
         serialized
-            .to_svg_file(svg_dirpath.join("initial_egraph.svg"), None)
+            .to_svg_file(svg_dirpath.join("initial_egraph.svg"))
             .unwrap();
         info!(
             "Initial egraph svg: {}",
@@ -680,7 +680,7 @@ fn main() {
         create_dir_all(svg_dirpath).unwrap();
         let serialized = egraph.serialize(SerializeConfig::default());
         serialized
-            .to_svg_file(svg_dirpath.join("after_rewrites.svg"), None)
+            .to_svg_file(svg_dirpath.join("after_rewrites.svg"))
             .unwrap();
         info!(
             "Egraph after rewrites: {}",
@@ -977,7 +977,7 @@ fn main() {
 
         if let Some(svg_dirpath) = &args.svg_dirpath {
             serialized_egraph
-                .to_svg_file(svg_dirpath.join("after_rewrites_pruned.svg"), Some(labels))
+                .to_svg_file(svg_dirpath.join("after_rewrites_pruned.svg")) //, Some(labels))
                 .unwrap();
             info!(
                 "Egraph after rewrites pruned: {}",
@@ -1269,7 +1269,7 @@ fn main() {
         if let Some(svg_dirpath) = &args.svg_dirpath {
             let serialized = egraph.serialize(SerializeConfig::default());
             serialized
-                .to_svg_file(svg_dirpath.join("during_lakeroad.svg"), None)
+                .to_svg_file(svg_dirpath.join("during_lakeroad.svg"))
                 .unwrap();
             info!(
                 "Egraph after nth call to Lakeroad: {}",
@@ -1282,7 +1282,7 @@ fn main() {
     if let Some(svg_dirpath) = args.svg_dirpath {
         let serialized = egraph.serialize(SerializeConfig::default());
         serialized
-            .to_svg_file(svg_dirpath.join("after_lakeroad.svg"), None)
+            .to_svg_file(svg_dirpath.join("after_lakeroad.svg"))
             .unwrap();
         info!(
             "Egraph after all calls to Lakeroad: {}",
