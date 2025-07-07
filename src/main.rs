@@ -1081,12 +1081,9 @@ fn main() {
             extractable_predicate,
         );
         let choices = GlobalGreedyDagExtractor {
-            structural_only: true,
             fail_on_partial: false,
             extractable_predicate,
         }
-        // TODO(@gussmith23): I'm surprised that roots is unused. Do you not need to
-        // care about a root to minimize for?
         .extract(
             &serialized_egraph,
             &outputs
