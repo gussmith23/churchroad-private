@@ -612,7 +612,10 @@ pub fn find_primitive_interfaces_serialized(egraph: &egraph_serialize::EGraph) -
         .nodes
         .iter()
         .filter_map(|(node_id, node)| {
-            if node.op == "PrimitiveInterfaceDSP" || node.op == "PrimitiveInterfaceDSP3" {
+            if node.op == "PrimitiveInterfaceDSP"
+                || node.op == "PrimitiveInterfaceDSP3"
+                || node.op == "PrimitiveInterfaceWideAddDSP"
+            {
                 Some(node_id.to_owned())
             } else {
                 None
