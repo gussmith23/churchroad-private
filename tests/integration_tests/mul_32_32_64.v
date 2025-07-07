@@ -3,7 +3,6 @@
 // RUN:   --filepath %s \
 // RUN:   --top-module-name mul \
 // RUN:   --architecture xilinx-ultrascale-plus \
-// RUN:   --svg-dirpath svgs \
 // RUN:   --simulate \
 // TODO Hardcoded
 // RUN:   --simulate-with-verilator-arg="--verilator_include_dir=/Users/gussmith/lakeroad-private/DSP48E2" \
