@@ -214,21 +214,18 @@ pub fn call_lakeroad_on_primitive_interface_and_spec(
 
     // Put the spec in a tempfile.
     let mut spec_file = NamedTempFile::new().unwrap();
+    let verilog = to_verilog_egraph_serialize(
+        serialized_egraph,
+        spec_choices,
+        "clk",
+        bottom_out_at,
+        Some([(eclass.clone(), "out".to_string())].into()),
+    );
+    debug!("Verilog spec:\n{}", verilog);
     let spec_filepath = spec_file.path().to_owned();
-    spec_file
-        .write_all(
-            to_verilog_egraph_serialize(
-                serialized_egraph,
-                spec_choices,
-                "clk",
-                bottom_out_at,
-                Some([(eclass.clone(), "out".to_string())].into()),
-            )
-            .as_bytes(),
-        )
-        .unwrap();
+    spec_file.write_all(verilog.as_bytes()).unwrap();
     spec_file.flush().unwrap();
-    // spec_file.persist("tmp.v").unwrap();
+    spec_file.keep().unwrap();
 
     let binding =
         env::var("LAKEROAD_DIR").expect("LAKEROAD_DIR environment variable should be set.");
